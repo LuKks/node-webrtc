@@ -17,5 +17,5 @@ test("native package matrix includes each supported target once", async () => {
   ]);
   assert.equal(new Set(targets).size, targets.length);
   assert.equal(new Set(packages).size, packages.length);
-  assert.ok(packages.includes("@vandeurenglenn/wrtc-linux-arm64"));
+  assert.ok(packages.includes("@lukks/wrtc-linux-arm64"));
 });

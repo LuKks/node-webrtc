@@ -1,5 +1,5 @@
 {
-  "name": "@vandeurenglenn/wrtc",
+  "name": "@lukks/wrtc",
   "description": "Standards-compliant WebRTC implementation for Node",
   "keywords": [
     "webrtc",
@@ -7,14 +7,14 @@
     "peer"
   ],
   "type": "module",
-  "version": "0.7.2",
+  "version": "0.7.3",
   "author": "Alan K <ack@modeswitch.org> (http://blog.modeswitch.org)",
-  "homepage": "https://github.com/VandeurenGlenn/node-webrtc",
-  "bugs": "https://github.com/VandeurenGlenn/node-webrtc/issues",
+  "homepage": "https://github.com/LuKks/node-webrtc",
+  "bugs": "https://github.com/LuKks/node-webrtc/issues",
   "license": "BSD-2-Clause",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/VandeurenGlenn/node-webrtc.git"
+    "url": "git+https://github.com/LuKks/node-webrtc.git"
   },
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -27,7 +27,7 @@
   },
   "browser": "lib/browser.js",
   "engines": {
-    "node": ">=24.15.0"
+    "node": "^22.13.0 || >=24.15.0"
   },
   "dependencies": {
     "node-addon-api": "^8.9.2",

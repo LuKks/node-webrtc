@@ -116,7 +116,7 @@ test('implementation comparison exposes reused-result measurement dates', t => {
   fs.writeFileSync(path.join(input, 'linux.json'), JSON.stringify(result('linux', 'x64', 1)));
 
   for (const [filename, implementation, timestamp, median] of [
-    ['project.json', '@vandeurenglenn/wrtc', '2026-02-03T00:00:00.000Z', 1],
+    ['project.json', '@lukks/wrtc', '2026-02-03T00:00:00.000Z', 1],
     ['alternative.json', 'werift 0.24.4', '2026-01-26T00:00:00.000Z', 2]
   ]) {
     fs.writeFileSync(path.join(input, filename), JSON.stringify({
@@ -150,7 +150,7 @@ test('implementation comparison exposes reused-result measurement dates', t => {
     const html = fs.readFileSync(path.join(output, 'index.html'), 'utf8');
     t.ok(html.includes('Pinned alternatives are refreshed weekly'));
     t.ok(html.includes('werift 0.24.4<small>Node v26.0.0 · measured 2026-01-26'));
-    t.ok(html.includes('@vandeurenglenn/wrtc<small>Node v26.0.0 · measured 2026-02-03'));
+    t.ok(html.includes('@lukks/wrtc<small>Node v26.0.0 · measured 2026-02-03'));
     t.end();
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

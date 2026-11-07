@@ -64,7 +64,7 @@ a self-contained HTML report. Individual platform JSON results are retained as
 workflow artifacts for 90 days and become the baseline for subsequent pull
 requests after they land on `develop`.
 
-Successful `develop` builds also publish the report at
+The upstream project publishes its report at
 [vandeurenglenn.github.io/node-webrtc](https://vandeurenglenn.github.io/node-webrtc/).
 The dashboard includes a per-scenario timeline built from up to 20 successful
 `develop` workflow runs. Hover a point to see its commit and mean duration.

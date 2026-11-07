@@ -144,7 +144,7 @@ export async function verifyRegistryInstall({ registry, version }) {
       process.execPath,
       [
         "-e",
-        "const wrtc=require('@vandeurenglenn/wrtc');" +
+        "const wrtc=require('@lukks/wrtc');" +
           "const pc=new wrtc.RTCPeerConnection();" +
           "pc.close();" +
           "console.log('Public npm release loaded successfully');",

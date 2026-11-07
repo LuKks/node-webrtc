@@ -471,7 +471,7 @@ jobs:
         if: matrix.cross_compile != true
         uses: actions/setup-node@v7
         with:
-          node-version: 24.15
+          node-version: 22.13.0
 
       - name: Verify minimum supported Node.js
         if: matrix.cross_compile != true
@@ -580,7 +580,7 @@ jobs:
           # Measure the combined optimizations against the published release.
           mkdir -p benchmarks/release-baseline
           release_archive="wrtc-v0.7.2-napi-v3-$(node -p 'process.platform')-$(node -p 'process.arch').tar.gz"
-          gh release download v0.7.2 --repo "$GITHUB_REPOSITORY" \
+          gh release download v0.7.2 --repo VandeurenGlenn/node-webrtc \
             --pattern "$release_archive" --dir benchmarks/release-baseline
           tar -xzf "benchmarks/release-baseline/$release_archive" -C benchmarks/release-baseline
           echo "addon=benchmarks/release-baseline/Release/wrtc.node" >> "$GITHUB_OUTPUT"
@@ -695,7 +695,7 @@ jobs:
       - name: Setup minimum supported Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 24.15
+          node-version: 22.13.0
 
       - name: Verify minimum supported Node.js
         run: node -e "const wrtc=require('./'); const pc=new wrtc.RTCPeerConnection(); pc.close(); console.log('wrtc ok on', process.version);"
@@ -726,7 +726,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p benchmarks/release-baseline
-          gh release download v0.7.2 --repo "$GITHUB_REPOSITORY" \
+          gh release download v0.7.2 --repo VandeurenGlenn/node-webrtc \
             --pattern 'wrtc-v0.7.2-napi-v3-linux-arm64.tar.gz' --dir benchmarks/release-baseline
           tar -xzf benchmarks/release-baseline/wrtc-v0.7.2-napi-v3-linux-arm64.tar.gz -C benchmarks/release-baseline
           node benchmarks/run-paired.js \
@@ -917,12 +917,12 @@ jobs:
         run: |
           node benchmarks/run.js \
             --suite implementation-comparison \
-            --implementation @vandeurenglenn/wrtc \
+            --implementation @lukks/wrtc \
             --iterations 5 \
             --warmup 1 \
             --compare-runs 3 \
             --messages 10 \
-            --output benchmarks/implementations/vandeurenglenn-wrtc.json
+            --output benchmarks/implementations/lukks-wrtc.json
 
       - name: Reuse trusted alternative benchmark results
         id: alternative-cache
@@ -1434,7 +1434,7 @@ jobs:
             gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
               --verify-tag \
               --generate-notes \
-              --title "@vandeurenglenn/wrtc $GITHUB_REF_NAME"
+              --title "@lukks/wrtc $GITHUB_REF_NAME"
           fi
 
       - name: Verify the packaged install path
@@ -1446,7 +1446,7 @@ jobs:
           cd "$install_dir"
           npm init -y >/dev/null
           npm install "$native_archive" "$package_archive"
-          node -e "import('@vandeurenglenn/wrtc').then(wrtc => console.log('installed release ok', !!wrtc))"
+          node -e "import('@lukks/wrtc').then(wrtc => console.log('installed release ok', !!wrtc))"
 
       - name: Publish native platform packages to npm with provenance
         run: |

@@ -64,7 +64,7 @@ async function main() {
       join(packageDirectory, "README.md"),
       `# ${target.packageName}\n\n` +
         `Native ${target.platform}/${target.arch} binary for ` +
-        `[@vandeurenglenn/wrtc](https://www.npmjs.com/package/@vandeurenglenn/wrtc).\n`,
+        `[@lukks/wrtc](https://www.npmjs.com/package/@lukks/wrtc).\n`,
     );
     await writeFile(
       join(packageDirectory, "package.json"),
@@ -72,7 +72,7 @@ async function main() {
         {
           name: target.packageName,
           version,
-          description: `Native ${target.platform}/${target.arch} binary for @vandeurenglenn/wrtc`,
+          description: `Native ${target.platform}/${target.arch} binary for @lukks/wrtc`,
           license: rootPackage.license,
           repository: rootPackage.repository,
           engines: rootPackage.engines,

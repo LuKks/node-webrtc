@@ -113,7 +113,7 @@ function parseArgs(argv) {
     baseline: "",
     regressionThreshold: 5,
     failOnRegression: false,
-    implementation: "@vandeurenglenn/wrtc",
+    implementation: "@lukks/wrtc",
     module: "",
     suite: "platform",
     scenarios: [],

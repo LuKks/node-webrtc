@@ -3,14 +3,14 @@
   <img height="120px" src="https://webrtc.github.io/webrtc-org/assets/images/webrtc-logo-vert-retro-dist.svg" />
 </h1>
 
-[![npm version](https://img.shields.io/npm/v/%40vandeurenglenn%2Fwrtc.svg)](https://www.npmjs.com/package/@vandeurenglenn/wrtc)
-[![npm downloads](https://img.shields.io/npm/dm/%40vandeurenglenn%2Fwrtc.svg)](https://www.npmjs.com/package/@vandeurenglenn/wrtc)
-[![Node.js](https://img.shields.io/node/v/%40vandeurenglenn%2Fwrtc.svg?logo=node.js&logoColor=white)](package.json)
-[![license](https://img.shields.io/npm/l/%40vandeurenglenn%2Fwrtc.svg)](LICENSE.md)
-[![GitHub release](https://img.shields.io/github/v/release/VandeurenGlenn/node-webrtc)](https://github.com/VandeurenGlenn/node-webrtc/releases/latest)
-[![Cross Platform Source Build](https://github.com/VandeurenGlenn/node-webrtc/actions/workflows/cross-platform-source-build.yml/badge.svg?branch=develop)](https://github.com/VandeurenGlenn/node-webrtc/actions/workflows/cross-platform-source-build.yml)
-[![WPT](https://img.shields.io/endpoint?url=https%3A%2F%2Fvandeurenglenn.github.io%2Fnode-webrtc%2Fwpt-badge.json)](https://github.com/VandeurenGlenn/node-webrtc/actions/workflows/cross-platform-source-build.yml)
-[![benchmarks](https://img.shields.io/badge/benchmarks-dashboard-a371f7)](https://vandeurenglenn.github.io/node-webrtc/)
+[![npm version](https://img.shields.io/npm/v/%40lukks%2Fwrtc.svg)](https://www.npmjs.com/package/@lukks/wrtc)
+[![npm downloads](https://img.shields.io/npm/dm/%40lukks%2Fwrtc.svg)](https://www.npmjs.com/package/@lukks/wrtc)
+[![Node.js](https://img.shields.io/node/v/%40lukks%2Fwrtc.svg?logo=node.js&logoColor=white)](package.json)
+[![license](https://img.shields.io/npm/l/%40lukks%2Fwrtc.svg)](LICENSE.md)
+[![GitHub release](https://img.shields.io/github/v/release/LuKks/node-webrtc)](https://github.com/LuKks/node-webrtc/releases/latest)
+[![Cross Platform Source Build](https://github.com/LuKks/node-webrtc/actions/workflows/cross-platform-source-build.yml/badge.svg?branch=develop)](https://github.com/LuKks/node-webrtc/actions/workflows/cross-platform-source-build.yml)
+[![Upstream WPT](https://img.shields.io/endpoint?url=https%3A%2F%2Fvandeurenglenn.github.io%2Fnode-webrtc%2Fwpt-badge.json)](https://github.com/VandeurenGlenn/node-webrtc/actions/workflows/cross-platform-source-build.yml)
+[![Upstream benchmarks](https://img.shields.io/badge/benchmarks-dashboard-a371f7)](https://vandeurenglenn.github.io/node-webrtc/)
 
 node-webrtc is a Node.js Native Addon that provides bindings to [WebRTC M154, branch-heads/8037](https://chromium.googlesource.com/external/webrtc/+/branch-heads/8037). This project aims for spec-compliance and is tested using the W3C's [web-platform-tests](https://github.com/web-platform-tests/wpt) project. A number of [nonstandard APIs](docs/nonstandard-apis.md) for testing are also included.
 
@@ -19,7 +19,7 @@ macOS, and Windows. WebRTC uses its Chromium Clang toolchain on Linux, Chromium
 `clang-cl` on Windows, and its pinned toolchain on macOS. The addon and WebRTC
 share each platform's standard C++ library ABI.
 
-The WPT badge reports actual subtest passes, failures (including expected
+The upstream WPT badge reports actual subtest passes, failures (including expected
 failures), and timeouts, plus the number of skipped files. A green CI job means
 the recorded expectations matched; it does **not** mean every WPT passed.
 Download the `wpt-status` Actions artifact for `wpt-results.json`, including
@@ -34,8 +34,8 @@ native interface members, and expose read-only payloads. `RTCTrackEvent.streams`
 is a frozen copy of the supplied sequence; native `track` notifications use this
 event class too. Full browser/Web IDL conformance remains a work in progress.
 
-Node.js 24.15 or newer is required. The package uses the platform-provided
-`DOMException` instead of the deprecated userland polyfill.
+The published package supports Node.js 22.13 and later 22.x releases, as well as
+Node.js 24.15 and later. It uses the platform-provided `DOMException`.
 
 `await peerConnection.setLocalDescription()` can generate and set an offer or
 answer using WebRTC's native operation chain. An omitted argument, `undefined`,
@@ -54,7 +54,7 @@ Install
 -------
 
 ```sh
-npm install @vandeurenglenn/wrtc
+npm install @lukks/wrtc
 ```
 
 The package manager selects a small optional native package for the current

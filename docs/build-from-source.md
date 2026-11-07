@@ -45,7 +45,7 @@ Clone this repository, install package dependencies without running the package
 install hook, and start the source build:
 
 ```sh
-git clone https://github.com/VandeurenGlenn/node-webrtc.git
+git clone git@github.com:LuKks/node-webrtc.git
 cd node-webrtc
 npm install --ignore-scripts
 npm run build
