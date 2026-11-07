@@ -37,6 +37,17 @@ else:
     header.write_text(patched)
     print(f"Patched {header} for system C++ standard libraries")
 
+# libstdc++ 15 rejects zero-argument emplace for this aggregate.
+rtp_config = source_root / "call/rtp_config.cc"
+rtp_content = rtp_config.read_text()
+old_emplace = "stream_config.rtx.emplace();"
+new_emplace = "stream_config.rtx.emplace(RtpStreamConfig::Rtx());"
+if rtp_content.count(old_emplace) == 1:
+    rtp_config.write_text(rtp_content.replace(old_emplace, new_emplace, 1))
+    print(f"Patched {rtp_config} for libstdc++ optional compatibility")
+elif rtp_content.count(new_emplace) != 1 or old_emplace in rtp_content:
+    raise SystemExit(f"expected unique RTX emplace in {rtp_config}")
+
 if os.environ.get("TARGET_ARCH") in {"arm", "arm64"}:
     # GCC 13 cannot compare heterogeneous std::pair keys. Materialize the
     # URI as the map's string key for the two RTP extension lookups.
@@ -87,14 +98,3 @@ if os.environ.get("TARGET_ARCH") in {"arm", "arm64"}:
         print(f"Patched {config} to use cross-GCC {version} C++ headers")
     else:
         print(f"Cross-GCC C++ headers already configured in {config}")
-
-    # libstdc++ 15 rejects zero-argument emplace for this aggregate.
-    rtp_config = source_root / "call/rtp_config.cc"
-    content = rtp_config.read_text()
-    old_emplace = "stream_config.rtx.emplace();"
-    new_emplace = "stream_config.rtx.emplace(RtpStreamConfig::Rtx());"
-    if content.count(old_emplace) == 1:
-        rtp_config.write_text(content.replace(old_emplace, new_emplace, 1))
-        print(f"Patched {rtp_config} for cross-GCC optional compatibility")
-    elif content.count(new_emplace) != 1 or old_emplace in content:
-        raise SystemExit(f"expected unique RTX emplace in {rtp_config}")
