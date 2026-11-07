@@ -170,9 +170,10 @@ jobs:
             platform_patch_1: cmake/webrtc-linux.cmake
             platform_patch_2: cmake/webrtc-linux.cmake
             legacy_artifact: ""
-          - os: ubuntu-latest
-            label: ubuntu-latest (linux arm64 cross)
+          - os: ubuntu-24.04
+            label: ubuntu-24.04 (linux arm64 cross)
             node: 26
+            timeout_minutes: 120
             run_wpt: false
             cross_compile: true
             target_arch: arm64
@@ -655,7 +656,9 @@ jobs:
           npm install --ignore-scripts
 
       - name: Smoke load addon
-        run: node -e "const wrtc=require('./'); const pc=new wrtc.RTCPeerConnection(); pc.close(); console.log('wrtc ok on', process.arch);"
+        run: |
+          node -e "require('./build/Release/wrtc.node'); console.log('native addon loaded on', process.arch);"
+          node -e "const wrtc=require('./'); const pc=new wrtc.RTCPeerConnection(); pc.close(); console.log('wrtc ok on', process.arch);"
 
       - name: Run native test suite
         run: npm test
@@ -666,7 +669,9 @@ jobs:
           node-version: 22.13.0
 
       - name: Verify minimum supported Node.js
-        run: node -e "const wrtc=require('./'); const pc=new wrtc.RTCPeerConnection(); pc.close(); console.log('wrtc ok on', process.version);"
+        run: |
+          node -e "require('./build/Release/wrtc.node'); console.log('native addon loaded on', process.version);"
+          node -e "const wrtc=require('./'); const pc=new wrtc.RTCPeerConnection(); pc.close(); console.log('wrtc ok on', process.version);"
 
       - name: Name tested ARM64 addon cache
         id: native-addon-cache
