@@ -3,7 +3,7 @@ name: Windows performance A/B
 on:
   workflow_dispatch:
   pull_request:
-    branches: [develop]
+    branches: [main]
     paths:
       - .github/workflows/windows-performance-ab.yml
 

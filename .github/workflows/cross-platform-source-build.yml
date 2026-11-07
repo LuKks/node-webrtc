@@ -4,12 +4,12 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - develop
+      - main
     tags:
       - "v*"
   pull_request:
     branches:
-      - develop
+      - main
     paths-ignore:
       - "README.md"
       - "docs/**"
@@ -950,7 +950,7 @@ jobs:
         run: |
           run_id="$(
             gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=benchmark-alternatives&per_page=100" \
-              --jq '[.artifacts[] | select(.expired == false and .workflow_run.head_branch == "develop")] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty'
+              --jq '[.artifacts[] | select(.expired == false and .workflow_run.head_branch == "main")] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty'
           )"
           if [ -z "$run_id" ]; then
             echo "hit=false" >> "$GITHUB_OUTPUT"
@@ -1076,7 +1076,7 @@ jobs:
           mkdir -p benchmark-history
           gh pr list \
             --repo "$GITHUB_REPOSITORY" \
-            --base develop \
+            --base main \
             --state merged \
             --limit 20 \
             --json headRefOid \
@@ -1140,7 +1140,7 @@ jobs:
 
   deploy-benchmark-pages:
     name: Publish benchmark dashboard
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -1249,7 +1249,7 @@ jobs:
           )
 
           if [ -z "$benchmark_run_id" ]; then
-            echo "No successful PR run has benchmark inputs compatible with develop" >&2
+            echo "No successful PR run has benchmark inputs compatible with main" >&2
             exit 1
           fi
 
@@ -1275,7 +1275,7 @@ jobs:
           mkdir -p benchmark-history
           gh pr list \
             --repo "$GITHUB_REPOSITORY" \
-            --base develop \
+            --base main \
             --state merged \
             --limit 20 \
             --json headRefOid \

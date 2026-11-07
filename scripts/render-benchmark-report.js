@@ -155,7 +155,7 @@ function renderTimeline(result, scenarioName) {
     && item.meta.arch === result.meta.arch
     && typeof item.scenarios?.[scenarioName]?.mean === "number");
   if (points.length < 2) {
-    return '<p class="history-pending">History appears after two successful develop runs.</p>';
+    return '<p class="history-pending">History appears after two successful main runs.</p>';
   }
   const width = 440;
   const height = 84;
