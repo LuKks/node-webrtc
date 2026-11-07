@@ -34,7 +34,7 @@ class RTCDataChannel
 
   ~RTCDataChannel() override;
 
-  static Napi::FunctionReference& constructor();
+  static Napi::FunctionReference& constructor(Napi::Env);
 
   static void Init(Napi::Env, Napi::Object);
 
@@ -47,11 +47,12 @@ class RTCDataChannel
 
   void OnPeerConnectionClosed();
 
-  static ::node_webrtc::Wrap <
+  using Wrapper = ::node_webrtc::Wrap <
   RTCDataChannel*,
   rtc::scoped_refptr<webrtc::DataChannelInterface>,
   node_webrtc::DataChannelObserver*
-  > * wrap();
+  >;
+  static Wrapper* wrap(AddonState&);
 
  private:
   class MessageEvent;

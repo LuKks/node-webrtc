@@ -7,6 +7,8 @@
  */
 #pragma once
 
+#include <mutex>
+
 #include "src/utilities/bidi_map.h"
 
 namespace node_webrtc {
@@ -23,22 +25,33 @@ class Wrap {
   Wrap& operator=(Wrap const&) = delete;
 
   T GetOrCreate(V... args, U key) {
-    return _map.computeIfAbsent(key, [this, key, args...]() {
-      return _create(args..., key);
-    });
+    if (auto wrapper = Get(key)) {
+      return wrapper;
+    }
+    // Only the owning Node thread creates wrappers. Creation can wait on a
+    // WebRTC thread that also reads this map.
+    auto wrapper = _create(args..., key);
+    std::lock_guard<std::mutex> lock(_mutex);
+    _map.set(key, wrapper);
+    return wrapper;
   }
 
   T Get(U key) {
+    std::lock_guard<std::mutex> lock(_mutex);
     return _map.get(key).FromMaybe(nullptr);
   }
 
   void Release(T value) {
-    _map.reverseRemove(value);
+    std::unique_lock<std::mutex> lock(_mutex);
+    // Dropping the last native reference can wait on a WebRTC thread.
+    [[maybe_unused]] auto key = _map.reverseRemove(value);
+    lock.unlock();
   }
 
  private:
   T(*_create)(V..., U);
   BidiMap<U, T> _map;
+  std::mutex _mutex;
 };
 
 }  // namespace node_webrtc

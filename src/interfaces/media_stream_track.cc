@@ -21,9 +21,8 @@
 
 namespace node_webrtc {
 
-Napi::FunctionReference& MediaStreamTrack::constructor() {
-  static Napi::FunctionReference constructor;
-  return constructor;
+Napi::FunctionReference& MediaStreamTrack::constructor(Napi::Env env) {
+  return AddonState::Constructor<MediaStreamTrack>(env);
 }
 
 MediaStreamTrack::MediaStreamTrack(const Napi::CallbackInfo& info)
@@ -55,11 +54,10 @@ MediaStreamTrack::MediaStreamTrack(const Napi::CallbackInfo& info)
 MediaStreamTrack::~MediaStreamTrack() {
   _track = nullptr;
 
-  Napi::HandleScope scope(PeerConnectionFactory::constructor().Env());
   _factory->Unref();
   _factory = nullptr;
 
-  wrap()->Release(this);
+  wrap(addon())->Release(this);
 }  // NOLINT
 
 void MediaStreamTrack::Stop() {
@@ -208,7 +206,7 @@ Napi::Value MediaStreamTrack::Clone(const Napi::CallbackInfo&) {
     rtc::scoped_refptr<webrtc::VideoTrackSourceInterface> source(videoTrack->GetSource());
     clonedTrack = _factory->factory()->CreateVideoTrack(source, label);
   }
-  auto clonedMediaStreamTrack = wrap()->GetOrCreate(_factory, clonedTrack);
+  auto clonedMediaStreamTrack = wrap(addon())->GetOrCreate(_factory, clonedTrack);
   {
     std::lock_guard<std::mutex> lock(_settingsMutex);
     std::lock_guard<std::mutex> cloneLock(clonedMediaStreamTrack->_settingsMutex);
@@ -234,26 +232,17 @@ Napi::Value MediaStreamTrack::JsStop(const Napi::CallbackInfo& info) {
   return info.Env().Undefined();
 }
 
-Wrap <
-MediaStreamTrack*,
-rtc::scoped_refptr<webrtc::MediaStreamTrackInterface>,
-PeerConnectionFactory*
-> * MediaStreamTrack::wrap() {
-  static auto wrap = new node_webrtc::Wrap <
-  MediaStreamTrack*,
-  rtc::scoped_refptr<webrtc::MediaStreamTrackInterface>,
-  PeerConnectionFactory*
-  > (MediaStreamTrack::Create);
-  return wrap;
+MediaStreamTrack::Wrapper* MediaStreamTrack::wrap(AddonState& addon) {
+  return addon.Wrapper<Wrapper>(Create);
 }
 
 MediaStreamTrack* MediaStreamTrack::Create(
     PeerConnectionFactory* factory,
     rtc::scoped_refptr<webrtc::MediaStreamTrackInterface> track) {
-  auto env = constructor().Env();
+  auto env = factory->Env();
   Napi::HandleScope scope(env);
 
-  auto mediaStreamTrack = constructor().New({
+  auto mediaStreamTrack = constructor(env).New({
     factory->Value(),
     Napi::External<rtc::scoped_refptr<webrtc::MediaStreamTrackInterface>>::New(env, &track)
   });
@@ -274,8 +263,7 @@ void MediaStreamTrack::Init(Napi::Env env, Napi::Object exports) {
     InstanceMethod("stop", &MediaStreamTrack::JsStop)
   });
 
-  constructor() = Napi::Persistent(func);
-  constructor().SuppressDestruct();
+  constructor(env) = Napi::Persistent(func);
 
   exports.Set("MediaStreamTrack", func);
 }

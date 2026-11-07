@@ -33,8 +33,6 @@ class RTCAudioSink
       size_t number_of_channels,
       size_t number_of_frames) override;
 
-  static Napi::FunctionReference& constructor();
-
  protected:
   void Stop() override;
 

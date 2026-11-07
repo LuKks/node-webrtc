@@ -25,11 +25,6 @@
 
 namespace node_webrtc {
 
-Napi::FunctionReference& RTCVideoSource::constructor() {
-  static Napi::FunctionReference constructor;
-  return constructor;
-}
-
 RTCVideoSource::RTCVideoSource(const Napi::CallbackInfo& info)
   : Napi::ObjectWrap<RTCVideoSource>(info) {
   New(info);
@@ -50,16 +45,16 @@ Napi::Value RTCVideoSource::New(const Napi::CallbackInfo& info) {
   .Map([](auto needsDenoising) { return absl::optional<bool>(needsDenoising); })
   .FromMaybe(absl::optional<bool>());
 
-  _source = new rtc::RefCountedObject<RTCVideoTrackSource>(init.isScreencast, needsDenoising);
+  _source = new rtc::RefCountedObject<RTCVideoTrackSource>(env, init.isScreencast, needsDenoising);
 
   return info.Env().Undefined();
 }
 
-Napi::Value RTCVideoSource::CreateTrack(const Napi::CallbackInfo&) {
+Napi::Value RTCVideoSource::CreateTrack(const Napi::CallbackInfo& info) {
   // TODO(mroberts): Again, we have some implicit factory we are threading around. How to handle?
-  auto factory = PeerConnectionFactory::GetOrCreateDefault();
+  auto factory = PeerConnectionFactory::GetOrCreateDefault(info.Env());
   auto track = factory->factory()->CreateVideoTrack(_source, rtc::CreateRandomUuid());
-  return MediaStreamTrack::wrap()->GetOrCreate(factory, track)->Value();
+  return MediaStreamTrack::wrap(factory->addon())->GetOrCreate(factory, track)->Value();
 }
 
 Napi::Value RTCVideoSource::OnFrame(const Napi::CallbackInfo& info) {
@@ -96,9 +91,6 @@ void RTCVideoSource::Init(Napi::Env env, Napi::Object exports) {
     InstanceAccessor("needsDenoising", &RTCVideoSource::GetNeedsDenoising, nullptr),
     InstanceAccessor("isScreencast", &RTCVideoSource::GetIsScreencast, nullptr)
   });
-
-  constructor() = Napi::Persistent(func);
-  constructor().SuppressDestruct();
 
   exports.Set("RTCVideoSource", func);
 }

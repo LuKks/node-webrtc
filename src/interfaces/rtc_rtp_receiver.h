@@ -30,13 +30,14 @@ class RTCRtpReceiver: public AsyncObjectWrap<RTCRtpReceiver> {
 
   static void Init(Napi::Env, Napi::Object);
 
-  static ::node_webrtc::Wrap <
+  using Wrapper = ::node_webrtc::Wrap <
   RTCRtpReceiver*,
   rtc::scoped_refptr<webrtc::RtpReceiverInterface>,
   PeerConnectionFactory*
-  > * wrap();
+  >;
+  static Wrapper* wrap(AddonState&);
 
-  static Napi::FunctionReference& constructor();
+  static Napi::FunctionReference& constructor(Napi::Env);
 
   rtc::scoped_refptr<webrtc::RtpReceiverInterface> receiver() { return _receiver; }
 

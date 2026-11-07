@@ -17,7 +17,7 @@ class Test {
  public:
   static void Init(Napi::Env, Napi::Object);
 
-  static Napi::Env* env;
+  static thread_local Napi::Env* env;
 
  private:
   static Napi::Value TestImpl(const Napi::CallbackInfo&);

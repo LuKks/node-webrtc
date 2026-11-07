@@ -50,7 +50,7 @@ async function main() {
   await mkdir(outputDirectory, { recursive: true });
   for (const target of nativePlatforms) {
     const archiveName =
-      `wrtc-v${version}-napi-v3-` +
+      `wrtc-v${version}-napi-v6-` +
       `${target.platform}-${target.arch}.tar.gz`;
     const archive = await findArchive(assetsDirectory, archiveName);
     const packageDirectory = join(

@@ -5,6 +5,7 @@
 
 #include <node-addon-api/napi.h>
 
+#include "src/node/addon_state.h"
 #include "src/node/deferrer.h"
 
 namespace node_webrtc {
@@ -15,30 +16,26 @@ class AsyncContextReleaser
  public:
   AsyncContextReleaser(const Napi::CallbackInfo& info)
     : Napi::ObjectWrap<AsyncContextReleaser>(info)
-    , Deferrer(info.Env()) {}
+    , Deferrer(info.Env())
+    , _addon(AddonState::Get(info.Env())) {}
 
   ~AsyncContextReleaser() override {
-    // Other ObjectWrap finalizers can run after this singleton during Node
-    // environment teardown. Do not leave them with a dangling pointer.
-    _default = nullptr;
-    _shutting_down = true;
+    if (_addon->asyncContextReleaser == this) {
+      _addon->asyncContextReleaser = nullptr;
+    }
   }
 
-  static AsyncContextReleaser* GetDefault();
+  static void EnsureInitialized(Napi::Env);
   static void Init(Napi::Env, Napi::Object);
-  static void Shutdown();
 
-  void Release(Napi::AsyncContext*);
+  void Release(std::unique_ptr<Napi::AsyncContext>);
 
  protected:
   void Execute(Napi::Env) override;
 
  private:
-  static AsyncContextReleaser* _default;
-  static bool _shutting_down;
-  static Napi::FunctionReference& constructor();
-
-  std::queue<Napi::AsyncContext*> _contexts;
+  AddonState::Ptr _addon;
+  std::queue<std::unique_ptr<Napi::AsyncContext>> _contexts;
   std::mutex _contexts_mutex{};
 };
 

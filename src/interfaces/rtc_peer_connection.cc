@@ -76,7 +76,7 @@ class ReceiverPacketObserver : public webrtc::RtpReceiverObserverInterface {
   void OnFirstPacketReceivedAfterReceptiveChange(webrtc::MediaType) override {
     peer->Dispatch(CreateCallback<RTCPeerConnection>([peer = peer, receiver = receiver]() {
       if (peer->IsClosed()) return;
-      RTCRtpReceiver::wrap()->GetOrCreate(peer->_factory, receiver);
+      RTCRtpReceiver::wrap(peer->addon())->GetOrCreate(peer->_factory, receiver);
       peer->ReceiverTrack(receiver)->SetMuted(false);
     }));
   }
@@ -100,18 +100,13 @@ void RTCPeerConnection::ObserveReceiver(rtc::scoped_refptr<webrtc::RtpReceiverIn
 }
 
 MediaStreamTrack* RTCPeerConnection::ReceiverTrack(rtc::scoped_refptr<webrtc::RtpReceiverInterface> receiver) {
-  auto track = MediaStreamTrack::wrap()->GetOrCreate(_factory, receiver->track());
+  auto track = MediaStreamTrack::wrap(addon())->GetOrCreate(_factory, receiver->track());
   track->InitializeRemote();
   for (auto& reference : _receiverTracks) {
     if (MediaStreamTrack::Unwrap(reference.Value()) == track) return track;
   }
   _receiverTracks.push_back(Napi::Persistent(track->Value()));
   return track;
-}
-
-Napi::FunctionReference& RTCPeerConnection::constructor() {
-  static Napi::FunctionReference constructor;
-  return constructor;
 }
 
 //
@@ -133,7 +128,7 @@ RTCPeerConnection::RTCPeerConnection(const Napi::CallbackInfo& info)
   _cached_configuration = configuration;
 
   // TODO(mroberts): Read `factory` (non-standard) from RTCConfiguration?
-  _factory = PeerConnectionFactory::GetOrCreateDefault();
+  _factory = PeerConnectionFactory::GetOrCreateDefault(env);
   _shouldReleaseFactory = true;
 
   auto portAllocator = std::unique_ptr<webrtc::PortAllocator>(new webrtc::BasicPortAllocator(
@@ -171,7 +166,7 @@ RTCPeerConnection::~RTCPeerConnection() {
   _channels.clear();
   if (_factory) {
     if (_shouldReleaseFactory) {
-      PeerConnectionFactory::Release();
+      PeerConnectionFactory::Release(addon());
     }
     _factory = nullptr;
   }
@@ -276,7 +271,7 @@ void RTCPeerConnection::OnIceCandidateError(const std::string& address, int port
 void RTCPeerConnection::OnDataChannel(rtc::scoped_refptr<webrtc::DataChannelInterface> channel) {
   auto observer = new DataChannelObserver(_factory, channel);
   Dispatch(CreateCallback<RTCPeerConnection>([this, observer]() {
-    auto channel = RTCDataChannel::wrap()->GetOrCreate(observer, observer->channel());
+    auto channel = RTCDataChannel::wrap(addon())->GetOrCreate(observer, observer->channel());
     _channels.push_back(channel);
     MakeCallback("ondatachannel", { channel->Value() });
   }));
@@ -301,14 +296,14 @@ void RTCPeerConnection::OnTrack(rtc::scoped_refptr<webrtc::RtpTransceiverInterfa
     ReceiverTrack(receiver);
     auto mediaStreams = std::vector<MediaStream*>();
     for (auto const& stream : streams) {
-      auto mediaStream = MediaStream::wrap()->GetOrCreate(_factory, stream);
+      auto mediaStream = MediaStream::wrap(addon())->GetOrCreate(_factory, stream);
       mediaStreams.push_back(mediaStream);
     }
     CONVERT_OR_THROW_AND_RETURN_VOID_NAPI(Env(), mediaStreams, streamArray, Napi::Value)
     MakeCallback("ontrack", {
-      RTCRtpReceiver::wrap()->GetOrCreate(_factory, receiver)->Value(),
+      RTCRtpReceiver::wrap(addon())->GetOrCreate(_factory, receiver)->Value(),
       streamArray,
-      RTCRtpTransceiver::wrap()->GetOrCreate(_factory, transceiver)->Value()
+      RTCRtpTransceiver::wrap(addon())->GetOrCreate(_factory, transceiver)->Value()
     });
   }));
 }
@@ -316,7 +311,7 @@ void RTCPeerConnection::OnTrack(rtc::scoped_refptr<webrtc::RtpTransceiverInterfa
 void RTCPeerConnection::OnRemoveTrack(rtc::scoped_refptr<webrtc::RtpReceiverInterface> receiver) {
   Dispatch(CreateCallback<RTCPeerConnection>([this, receiver]() {
     if (IsClosed()) return;
-    RTCRtpReceiver::wrap()->GetOrCreate(_factory, receiver);
+    RTCRtpReceiver::wrap(addon())->GetOrCreate(_factory, receiver);
     ReceiverTrack(receiver)->SetMuted(true);
   }));
 }
@@ -353,7 +348,7 @@ Napi::Value RTCPeerConnection::AddTrack(const Napi::CallbackInfo& info) {
     return env.Undefined();
   }
   auto rtpSender = result.value();
-  return RTCRtpSender::wrap()->GetOrCreate(_factory, rtpSender)->Value();
+  return RTCRtpSender::wrap(addon())->GetOrCreate(_factory, rtpSender)->Value();
 }
 
 Napi::Value RTCPeerConnection::AddTransceiver(const Napi::CallbackInfo& info) {
@@ -381,7 +376,7 @@ Napi::Value RTCPeerConnection::AddTransceiver(const Napi::CallbackInfo& info) {
     return env.Undefined();
   }
   auto rtpTransceiver = result.value();
-  return RTCRtpTransceiver::wrap()->GetOrCreate(_factory, rtpTransceiver)->Value();
+  return RTCRtpTransceiver::wrap(addon())->GetOrCreate(_factory, rtpTransceiver)->Value();
 }
 
 Napi::Value RTCPeerConnection::RemoveTrack(const Napi::CallbackInfo& info) {
@@ -587,7 +582,7 @@ Napi::Value RTCPeerConnection::CreateDataChannel(const Napi::CallbackInfo& info)
   auto data_channel_interface = result.MoveValue();
 
   auto observer = new DataChannelObserver(_factory, data_channel_interface);
-  auto channel = RTCDataChannel::wrap()->GetOrCreate(observer, observer->channel());
+  auto channel = RTCDataChannel::wrap(addon())->GetOrCreate(observer, observer->channel());
   _channels.push_back(channel);
 
   return channel->Value();
@@ -627,7 +622,7 @@ Napi::Value RTCPeerConnection::GetReceivers(const Napi::CallbackInfo& info) {
   std::vector<RTCRtpReceiver*> receivers;
   if (_jinglePeerConnection) {
     for (const auto& receiver : _jinglePeerConnection->GetReceivers()) {
-      receivers.emplace_back(RTCRtpReceiver::wrap()->GetOrCreate(_factory, receiver));
+      receivers.emplace_back(RTCRtpReceiver::wrap(addon())->GetOrCreate(_factory, receiver));
     }
   }
   CONVERT_OR_THROW_AND_RETURN_NAPI(info.Env(), receivers, result, Napi::Value)
@@ -638,7 +633,7 @@ Napi::Value RTCPeerConnection::GetSenders(const Napi::CallbackInfo& info) {
   std::vector<RTCRtpSender*> senders;
   if (_jinglePeerConnection) {
     for (const auto& sender : _jinglePeerConnection->GetSenders()) {
-      senders.emplace_back(RTCRtpSender::wrap()->GetOrCreate(_factory, sender));
+      senders.emplace_back(RTCRtpSender::wrap(addon())->GetOrCreate(_factory, sender));
     }
   }
   CONVERT_OR_THROW_AND_RETURN_NAPI(info.Env(), senders, result, Napi::Value)
@@ -660,7 +655,7 @@ Napi::Value RTCPeerConnection::GetStats(const Napi::CallbackInfo& info) {
   if (selector.IsUndefined() || selector.IsNull()) {
     auto callback = webrtc::make_ref_counted<RTCStatsCollector>(this, deferred);
     if (callback->IsReady()) connection->GetStats(callback.get());
-  } else if (selector.IsObject() && selector.As<Napi::Object>().InstanceOf(RTCRtpSender::constructor().Value())) {
+  } else if (selector.IsObject() && selector.As<Napi::Object>().InstanceOf(RTCRtpSender::constructor(env).Value())) {
     void* wrapped = nullptr;
     if (napi_unwrap(env, selector, &wrapped) != napi_ok || !wrapped) {
       deferred.Reject(Napi::TypeError::New(env, "Invalid stats sender").Value());
@@ -674,7 +669,7 @@ Napi::Value RTCPeerConnection::GetStats(const Napi::CallbackInfo& info) {
       auto callback = webrtc::make_ref_counted<RTCStatsCollector>(this, deferred);
       if (callback->IsReady()) connection->GetStats(sender, callback);
     }
-  } else if (selector.IsObject() && selector.As<Napi::Object>().InstanceOf(RTCRtpReceiver::constructor().Value())) {
+  } else if (selector.IsObject() && selector.As<Napi::Object>().InstanceOf(RTCRtpReceiver::constructor(env).Value())) {
     void* wrapped = nullptr;
     if (napi_unwrap(env, selector, &wrapped) != napi_ok || !wrapped) {
       deferred.Reject(Napi::TypeError::New(env, "Invalid stats receiver").Value());
@@ -700,7 +695,7 @@ Napi::Value RTCPeerConnection::GetTransceivers(const Napi::CallbackInfo& info) {
   if (_jinglePeerConnection
       && _jinglePeerConnection->GetConfiguration().sdp_semantics == webrtc::SdpSemantics::kUnifiedPlan) {
     for (const auto& transceiver : _jinglePeerConnection->GetTransceivers()) {
-      transceivers.emplace_back(RTCRtpTransceiver::wrap()->GetOrCreate(_factory, transceiver));
+      transceivers.emplace_back(RTCRtpTransceiver::wrap(addon())->GetOrCreate(_factory, transceiver));
     }
   }
   CONVERT_OR_THROW_AND_RETURN_NAPI(info.Env(), transceivers, result, Napi::Value)
@@ -728,7 +723,7 @@ Napi::Value RTCPeerConnection::Close(const Napi::CallbackInfo& info) {
     // RTCPeerConnection, not unlike what we do with RTCDataChannels.
     if (sdpSemantics == webrtc::SdpSemantics::kUnifiedPlan) {
       for (const auto& receiver : _closedReceivers) {
-        auto track = MediaStreamTrack::wrap()->GetOrCreate(_factory, receiver->track());
+        auto track = MediaStreamTrack::wrap(addon())->GetOrCreate(_factory, receiver->track());
         track->OnPeerConnectionClosed();
       }
     }
@@ -741,7 +736,7 @@ Napi::Value RTCPeerConnection::Close(const Napi::CallbackInfo& info) {
   _jinglePeerConnection = nullptr;
   if (_factory) {
     if (_shouldReleaseFactory) {
-      PeerConnectionFactory::Release();
+      PeerConnectionFactory::Release(addon());
     }
     _factory = nullptr;
   }
@@ -834,7 +829,7 @@ Napi::Value RTCPeerConnection::GetPendingRemoteDescription(const Napi::CallbackI
 
 Napi::Value RTCPeerConnection::GetSctp(const Napi::CallbackInfo& info) {
   return _jinglePeerConnection && _jinglePeerConnection->GetSctpTransport()
-      ? RTCSctpTransport::wrap()->GetOrCreate(_factory, _jinglePeerConnection->GetSctpTransport())->Value()
+      ? RTCSctpTransport::wrap(addon())->GetOrCreate(_factory, _jinglePeerConnection->GetSctpTransport())->Value()
       : info.Env().Null();
 }
 
@@ -899,9 +894,6 @@ void RTCPeerConnection::Init(Napi::Env env, Napi::Object exports) {
     InstanceAccessor("iceConnectionState", &RTCPeerConnection::GetIceConnectionState, nullptr),
     InstanceAccessor("iceGatheringState", &RTCPeerConnection::GetIceGatheringState, nullptr)
   });
-
-  constructor() = Napi::Persistent(func);
-  constructor().SuppressDestruct();
 
   exports.Set("RTCPeerConnection", func);
 }

@@ -48,13 +48,14 @@ class MediaStreamTrack
   PeerConnectionFactory* factory() { return _factory; }
   rtc::scoped_refptr<webrtc::MediaStreamTrackInterface> track() { return _track; }
 
-  static ::node_webrtc::Wrap <
+  using Wrapper = ::node_webrtc::Wrap <
   MediaStreamTrack*,
   rtc::scoped_refptr<webrtc::MediaStreamTrackInterface>,
   PeerConnectionFactory*
-  > * wrap();
+  >;
+  static Wrapper* wrap(AddonState&);
 
-  static Napi::FunctionReference& constructor();
+  static Napi::FunctionReference& constructor(Napi::Env);
 
  protected:
   void Stop() override;

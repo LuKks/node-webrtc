@@ -28,17 +28,13 @@
 
 namespace node_webrtc {
 
-Napi::FunctionReference& PeerConnectionFactory::constructor() {
-  static Napi::FunctionReference constructor;
-  return constructor;
+Napi::FunctionReference& PeerConnectionFactory::constructor(Napi::Env env) {
+  return AddonState::Constructor<PeerConnectionFactory>(env);
 }
 
-PeerConnectionFactory* PeerConnectionFactory::_default = nullptr;
-std::mutex PeerConnectionFactory::_mutex{};  // NOLINT
-int PeerConnectionFactory::_references = 0;
-
 PeerConnectionFactory::PeerConnectionFactory(const Napi::CallbackInfo& info)
-  : Napi::ObjectWrap<PeerConnectionFactory>(info) {
+  : Napi::ObjectWrap<PeerConnectionFactory>(info)
+  , _addon(AddonState::Get(info.Env())) {
   auto env = info.Env();
 
   if (!info.IsConstructCall()) {
@@ -122,49 +118,40 @@ PeerConnectionFactory::~PeerConnectionFactory() {
   _socketFactory = nullptr;
 }
 
-PeerConnectionFactory* PeerConnectionFactory::GetOrCreateDefault() {
-  _mutex.lock();
-  _references++;
-  if (_references == 1) {
-    assert(_default == nullptr);
-    auto env = constructor().Env();
+PeerConnectionFactory* PeerConnectionFactory::GetOrCreateDefault(Napi::Env env) {
+  auto& addon = *AddonState::Get(env);
+  std::lock_guard<std::mutex> lock(addon.factoryMutex);
+  if (!addon.defaultFactory) {
     Napi::HandleScope scope(env);
-    auto object = constructor().New({});
-    auto factory = Unwrap(object);
-    _default = factory;
-    _default->Ref();
+    auto object = constructor(env).New({});
+    addon.defaultFactory = Unwrap(object);
+    addon.defaultFactory->Ref();
   }
-  _mutex.unlock();
-  return _default;
+  ++addon.defaultFactoryReferences;
+  return addon.defaultFactory;
 }
 
-void PeerConnectionFactory::Release() {
-  _mutex.lock();
-  _references--;
-  assert(_references >= 0);
-  if (!_references) {
-    assert(_default != nullptr);
-    _default->Unref();
-    _default = nullptr;
+void PeerConnectionFactory::Release(AddonState& addon) {
+  std::lock_guard<std::mutex> lock(addon.factoryMutex);
+  if (addon.closing) {
+    return;
   }
-  _mutex.unlock();
-}
-
-void PeerConnectionFactory::Dispose() {
-  webrtc::CleanupSSL();
+  assert(addon.defaultFactory && addon.defaultFactoryReferences > 0);
+  if (--addon.defaultFactoryReferences == 0) {
+    addon.defaultFactory->Unref();
+    addon.defaultFactory = nullptr;
+  }
 }
 
 void PeerConnectionFactory::Init(Napi::Env env, Napi::Object exports) {
-  bool result;
-  (void) result;
-
-  result = webrtc::InitializeSSL();
-  assert(result);
+  // libwebrtc shares SSL initialization across Node environments.
+  static const auto initialized = webrtc::InitializeSSL();
+  assert(initialized);
+  (void) initialized;
 
   auto func = DefineClass(env, "RTCPeerConnectionFactory", {});
 
-  constructor() = Napi::Persistent(func);
-  constructor().SuppressDestruct();
+  constructor(env) = Napi::Persistent(func);
 
   exports.Set("RTCPeerConnectionFactory", func);
 }

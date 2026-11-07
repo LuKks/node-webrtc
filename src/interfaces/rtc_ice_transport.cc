@@ -18,9 +18,8 @@
 
 namespace node_webrtc {
 
-Napi::FunctionReference& RTCIceTransport::constructor() {
-  static Napi::FunctionReference constructor;
-  return constructor;
+Napi::FunctionReference& RTCIceTransport::constructor(Napi::Env env) {
+  return AddonState::Constructor<RTCIceTransport>(env);
 }
 
 RTCIceTransport::RTCIceTransport(const Napi::CallbackInfo& info)
@@ -72,10 +71,9 @@ void RTCIceTransport::TakeSnapshot() {
 }
 
 RTCIceTransport::~RTCIceTransport() {
-  Napi::HandleScope scope(PeerConnectionFactory::constructor().Env());
   _factory->Unref();
   _factory = nullptr;
-  wrap()->Release(this);
+  wrap(addon())->Release(this);
 }  // NOLINT
 
 void RTCIceTransport::OnRTCDtlsTransportStopped() {
@@ -95,26 +93,17 @@ void RTCIceTransport::Stop() {
   AsyncObjectWrapWithLoop<RTCIceTransport>::Stop();
 }
 
-Wrap <
-RTCIceTransport*,
-rtc::scoped_refptr<webrtc::IceTransportInterface>,
-PeerConnectionFactory*
-> * RTCIceTransport::wrap() {
-  static auto wrap = new node_webrtc::Wrap <
-  RTCIceTransport*,
-  rtc::scoped_refptr<webrtc::IceTransportInterface>,
-  PeerConnectionFactory*
-  > (RTCIceTransport::Create);
-  return wrap;
+RTCIceTransport::Wrapper* RTCIceTransport::wrap(AddonState& addon) {
+  return addon.Wrapper<Wrapper>(Create);
 }
 
 RTCIceTransport* RTCIceTransport::Create(
     PeerConnectionFactory* factory,
     rtc::scoped_refptr<webrtc::IceTransportInterface> transport) {
-  auto env = constructor().Env();
+  auto env = factory->Env();
   Napi::HandleScope scope(env);
 
-  auto object = constructor().New({
+  auto object = constructor(env).New({
     factory->Value(),
     Napi::External<rtc::scoped_refptr<webrtc::IceTransportInterface>>::New(env, &transport)
   });
@@ -227,8 +216,7 @@ void RTCIceTransport::Init(Napi::Env env, Napi::Object exports) {
     InstanceMethod("getRemoteParameters", &RTCIceTransport::GetRemoteParameters)
   });
 
-  constructor() = Napi::Persistent(func);
-  constructor().SuppressDestruct();
+  constructor(env) = Napi::Persistent(func);
 
   exports.Set("RTCIceTransport", func);
 }

@@ -17,21 +17,16 @@
 
 namespace node_webrtc {
 
-Napi::FunctionReference& RTCAudioSource::constructor() {
-  static Napi::FunctionReference constructor;
-  return constructor;
-}
-
 RTCAudioSource::RTCAudioSource(const Napi::CallbackInfo& info)
   : Napi::ObjectWrap<RTCAudioSource>(info) {
-  _source = new rtc::RefCountedObject<RTCAudioTrackSource>();
+  _source = new rtc::RefCountedObject<RTCAudioTrackSource>(info.Env());
 }
 
-Napi::Value RTCAudioSource::CreateTrack(const Napi::CallbackInfo&) {
+Napi::Value RTCAudioSource::CreateTrack(const Napi::CallbackInfo& info) {
   // TODO(mroberts): Again, we have some implicit factory we are threading around. How to handle?
-  auto factory = PeerConnectionFactory::GetOrCreateDefault();
+  auto factory = PeerConnectionFactory::GetOrCreateDefault(info.Env());
   auto track = factory->factory()->CreateAudioTrack(rtc::CreateRandomUuid(), _source.get());
-  return MediaStreamTrack::wrap()->GetOrCreate(factory, track)->Value();
+  return MediaStreamTrack::wrap(factory->addon())->GetOrCreate(factory, track)->Value();
 }
 
 Napi::Value RTCAudioSource::OnData(const Napi::CallbackInfo& info) {
@@ -47,9 +42,6 @@ void RTCAudioSource::Init(Napi::Env env, Napi::Object exports) {
     InstanceMethod("createTrack", &RTCAudioSource::CreateTrack),
     InstanceMethod("onData", &RTCAudioSource::OnData)
   });
-
-  constructor() = Napi::Persistent(func);
-  constructor().SuppressDestruct();
 
   exports.Set("RTCAudioSource", func);
 }

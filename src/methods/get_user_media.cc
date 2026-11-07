@@ -107,7 +107,7 @@ Napi::Value node_webrtc::GetUserMedia::GetUserMediaImpl(const Napi::CallbackInfo
 
   CONVERT_ARGS_OR_REJECT_AND_RETURN_NAPI(deferred, info, constraints, MediaStreamConstraints)
 
-  auto factory = node_webrtc::PeerConnectionFactory::GetOrCreateDefault();
+  auto factory = node_webrtc::PeerConnectionFactory::GetOrCreateDefault(info.Env());
   auto stream = factory->factory()->CreateLocalMediaStream(rtc::CreateRandomUuid());
 
   auto audio = constraints.audio.Map([](auto constraint) {
@@ -127,12 +127,12 @@ Napi::Value node_webrtc::GetUserMedia::GetUserMediaImpl(const Napi::CallbackInfo
 
   if (video) {
     rtc::scoped_refptr<node_webrtc::RTCVideoTrackSource> source(
-        new rtc::RefCountedObject<node_webrtc::RTCVideoTrackSource>());
+        new rtc::RefCountedObject<node_webrtc::RTCVideoTrackSource>(info.Env(), false, absl::nullopt));
     auto track = factory->factory()->CreateVideoTrack(source, rtc::CreateRandomUuid());
     stream->AddTrack(track);
   }
 
-  node_webrtc::Resolve(deferred, MediaStream::wrap()->GetOrCreate(factory, stream));
+  node_webrtc::Resolve(deferred, MediaStream::wrap(factory->addon())->GetOrCreate(factory, stream));
   return deferred.Promise();
 }
 

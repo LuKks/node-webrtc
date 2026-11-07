@@ -26,9 +26,8 @@
 
 namespace node_webrtc {
 
-Napi::FunctionReference& RTCRtpSender::constructor() {
-  static Napi::FunctionReference constructor;
-  return constructor;
+Napi::FunctionReference& RTCRtpSender::constructor(Napi::Env env) {
+  return AddonState::Constructor<RTCRtpSender>(env);
 }
 
 RTCRtpSender::RTCRtpSender(const Napi::CallbackInfo& info)
@@ -48,18 +47,17 @@ RTCRtpSender::RTCRtpSender(const Napi::CallbackInfo& info)
 }
 
 RTCRtpSender::~RTCRtpSender() {
-  Napi::HandleScope scope(PeerConnectionFactory::constructor().Env());
   _factory->Unref();
   _factory = nullptr;
 
-  wrap()->Release(this);
+  wrap(addon())->Release(this);
 }
 
 Napi::Value RTCRtpSender::GetTrack(const Napi::CallbackInfo& info) {
   Napi::Value result = info.Env().Null();
   auto track = _sender->track();
   if (track) {
-    result = MediaStreamTrack::wrap()->GetOrCreate(_factory, track)->Value();
+    result = MediaStreamTrack::wrap(addon())->GetOrCreate(_factory, track)->Value();
   }
   return result;
 }
@@ -67,7 +65,7 @@ Napi::Value RTCRtpSender::GetTrack(const Napi::CallbackInfo& info) {
 Napi::Value RTCRtpSender::GetTransport(const Napi::CallbackInfo& info) {
   auto transport = _sender->dtls_transport();
   return transport
-      ? RTCDtlsTransport::wrap()->GetOrCreate(_factory, transport)->Value()
+      ? RTCDtlsTransport::wrap(addon())->GetOrCreate(_factory, transport)->Value()
       : info.Env().Null();
 }
 
@@ -78,7 +76,7 @@ Napi::Value RTCRtpSender::GetRtcpTransport(const Napi::CallbackInfo& info) {
 Napi::Value RTCRtpSender::GetCapabilities(const Napi::CallbackInfo& info) {
   CONVERT_ARGS_OR_THROW_AND_RETURN_NAPI(info, kindString, std::string)
   if (kindString == "audio" || kindString == "video") {
-    auto factory = PeerConnectionFactory::GetOrCreateDefault();
+    auto factory = PeerConnectionFactory::GetOrCreateDefault(info.Env());
     auto kind = kindString == "audio" ? webrtc::MediaType::AUDIO : webrtc::MediaType::VIDEO;
     auto capabilities = factory->factory()->GetRtpSenderCapabilities(kind);
     factory->Release();
@@ -148,26 +146,17 @@ Napi::Value RTCRtpSender::SetStreams(const Napi::CallbackInfo& info) {
   return info.Env().Undefined();
 }
 
-Wrap <
-RTCRtpSender*,
-rtc::scoped_refptr<webrtc::RtpSenderInterface>,
-PeerConnectionFactory*
-> * RTCRtpSender::wrap() {
-  static auto wrap = new node_webrtc::Wrap <
-  RTCRtpSender*,
-  rtc::scoped_refptr<webrtc::RtpSenderInterface>,
-  PeerConnectionFactory*
-  > (RTCRtpSender::Create);
-  return wrap;
+RTCRtpSender::Wrapper* RTCRtpSender::wrap(AddonState& addon) {
+  return addon.Wrapper<Wrapper>(Create);
 }
 
 RTCRtpSender* RTCRtpSender::Create(
     PeerConnectionFactory* factory,
     rtc::scoped_refptr<webrtc::RtpSenderInterface> sender) {
-  auto env = constructor().Env();
+  auto env = factory->Env();
   Napi::HandleScope scope(env);
 
-  auto object = constructor().New({
+  auto object = constructor(env).New({
     factory->Value(),
     Napi::External<rtc::scoped_refptr<webrtc::RtpSenderInterface>>::New(env, &sender)
   });
@@ -187,8 +176,7 @@ void RTCRtpSender::Init(Napi::Env env, Napi::Object exports) {
     StaticMethod("getCapabilities", &RTCRtpSender::GetCapabilities)
   });
 
-  constructor() = Napi::Persistent(func);
-  constructor().SuppressDestruct();
+  constructor(env) = Napi::Persistent(func);
 
   exports.Set("RTCRtpSender", func);
 }
@@ -196,7 +184,7 @@ void RTCRtpSender::Init(Napi::Env env, Napi::Object exports) {
 FROM_NAPI_IMPL(RTCRtpSender*, value) {
   return From<Napi::Object>(value).FlatMap<RTCRtpSender*>([](Napi::Object object) {
     auto isRTCRtpSender = false;
-    napi_instanceof(object.Env(), object, RTCRtpSender::constructor().Value(), &isRTCRtpSender);
+    napi_instanceof(object.Env(), object, RTCRtpSender::constructor(object.Env()).Value(), &isRTCRtpSender);
     if (object.Env().IsExceptionPending()) {
       return Validation<RTCRtpSender*>::Invalid(object.Env().GetAndClearPendingException().Message());
     } else if (!isRTCRtpSender) {

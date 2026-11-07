@@ -27,11 +27,6 @@
 
 namespace node_webrtc {
 
-Napi::FunctionReference& RTCAudioSink::constructor() {
-  static Napi::FunctionReference constructor;
-  return constructor;
-}
-
 RTCAudioSink::RTCAudioSink(const Napi::CallbackInfo& info)
   : AsyncObjectWrapWithLoop<RTCAudioSink>("RTCAudioSink", *this, info) {
   auto env = info.Env();
@@ -149,9 +144,6 @@ void RTCAudioSink::Init(Napi::Env env, Napi::Object exports) {
     InstanceAccessor("stopped", &RTCAudioSink::GetStopped, nullptr),
     InstanceMethod("stop", &RTCAudioSink::JsStop)
   });
-
-  constructor() = Napi::Persistent(func);
-  constructor().SuppressDestruct();
 
   exports.Set("RTCAudioSink", func);
 }

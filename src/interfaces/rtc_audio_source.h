@@ -22,11 +22,13 @@ namespace node_webrtc {
 
 class RTCAudioTrackSource : public webrtc::LocalAudioSource {
  public:
-  RTCAudioTrackSource(): webrtc::LocalAudioSource(nullptr) {}
+  explicit RTCAudioTrackSource(Napi::Env env)
+    : webrtc::LocalAudioSource(nullptr), _addon(AddonState::Get(env)) {
+    PeerConnectionFactory::GetOrCreateDefault(env);
+  }
 
   ~RTCAudioTrackSource() override {
-    PeerConnectionFactory::Release();
-    _factory = nullptr;
+    PeerConnectionFactory::Release(*_addon);
   }
 
   SourceState state() const override {
@@ -60,7 +62,7 @@ class RTCAudioTrackSource : public webrtc::LocalAudioSource {
   }
 
  private:
-  PeerConnectionFactory* _factory = PeerConnectionFactory::GetOrCreateDefault();
+  AddonState::Ptr _addon;
 
   std::atomic<webrtc::AudioTrackSinkInterface*> _sink = {nullptr};
 };
@@ -73,8 +75,6 @@ class RTCAudioSource
   static void Init(Napi::Env, Napi::Object);
 
  private:
-  static Napi::FunctionReference& constructor();
-
   Napi::Value CreateTrack(const Napi::CallbackInfo&);
   Napi::Value OnData(const Napi::CallbackInfo&);
 

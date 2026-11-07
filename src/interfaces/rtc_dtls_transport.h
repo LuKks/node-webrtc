@@ -32,11 +32,12 @@ class RTCDtlsTransport
 
   static void Init(Napi::Env, Napi::Object);
 
-  static ::node_webrtc::Wrap <
+  using Wrapper = ::node_webrtc::Wrap <
   RTCDtlsTransport*,
   rtc::scoped_refptr<webrtc::DtlsTransportInterface>,
   PeerConnectionFactory*
-  > * wrap();
+  >;
+  static Wrapper* wrap(AddonState&);
 
   void OnStateChange(webrtc::DtlsTransportInformation) override;
 
@@ -46,7 +47,7 @@ class RTCDtlsTransport
   void Stop() override;
 
  private:
-  static Napi::FunctionReference& constructor();
+  static Napi::FunctionReference& constructor(Napi::Env);
 
   Napi::Value GetIceTransport(const Napi::CallbackInfo&);
   Napi::Value GetState(const Napi::CallbackInfo&);
