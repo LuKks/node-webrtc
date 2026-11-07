@@ -108,12 +108,13 @@ TEST_CASE("converting arrays", "[converting-arrays]") {
   }
 }
 
-Napi::Env* node_webrtc::Test::env = nullptr;
+thread_local Napi::Env* node_webrtc::Test::env = nullptr;
 
 Napi::Value node_webrtc::Test::TestImpl(const Napi::CallbackInfo& info) {
   auto env = info.Env();
   Test::env = &env;
   auto result = Catch::Session().run();
+  Test::env = nullptr;
   CONVERT_OR_THROW_AND_RETURN_NAPI(info.Env(), result, value, Napi::Value)
   return value;
 }

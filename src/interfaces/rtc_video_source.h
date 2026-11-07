@@ -24,15 +24,16 @@ namespace node_webrtc {
 
 class RTCVideoTrackSource : public webrtc::AdaptedVideoTrackSource {
  public:
-  RTCVideoTrackSource()
-    : webrtc::AdaptedVideoTrackSource(), _is_screencast(false) {}
-
-  RTCVideoTrackSource(const bool is_screencast, const absl::optional<bool> needs_denoising)
-    : webrtc::AdaptedVideoTrackSource(), _is_screencast(is_screencast), _needs_denoising(needs_denoising) {}
+  RTCVideoTrackSource(Napi::Env env, bool is_screencast, absl::optional<bool> needs_denoising)
+    : webrtc::AdaptedVideoTrackSource()
+    , _addon(AddonState::Get(env))
+    , _is_screencast(is_screencast)
+    , _needs_denoising(needs_denoising) {
+    PeerConnectionFactory::GetOrCreateDefault(env);
+  }
 
   ~RTCVideoTrackSource() override {
-    PeerConnectionFactory::Release();
-    _factory = nullptr;
+    PeerConnectionFactory::Release(*_addon);
   }
 
   SourceState state() const override {
@@ -56,7 +57,7 @@ class RTCVideoTrackSource : public webrtc::AdaptedVideoTrackSource {
   }
 
  private:
-  PeerConnectionFactory* _factory = PeerConnectionFactory::GetOrCreateDefault();
+  AddonState::Ptr _addon;
   const bool _is_screencast;
   const absl::optional<bool> _needs_denoising;
 };
@@ -69,8 +70,6 @@ class RTCVideoSource
   static void Init(Napi::Env, Napi::Object);
 
  private:
-  static Napi::FunctionReference& constructor();
-
   Napi::Value New(const Napi::CallbackInfo&);
 
   Napi::Value GetIsScreencast(const Napi::CallbackInfo&);

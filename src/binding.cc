@@ -6,7 +6,6 @@
  * tree.
  */
 #include <node-addon-api/napi.h>
-#include <assert.h>
 #include <uv.h>
 
 #include "src/interfaces/media_stream.h"
@@ -27,6 +26,7 @@
 #include "src/methods/get_display_media.h"
 #include "src/methods/get_user_media.h"
 #include "src/methods/i420_helpers.h"
+#include "src/node/addon_state.h"
 #include "src/node/async_context_releaser.h"
 #include "src/node/error_factory.h"
 
@@ -34,12 +34,10 @@
 #include "src/test.h"
 #endif
 
-static void dispose(void*) {
-  node_webrtc::AsyncContextReleaser::Shutdown();
-  node_webrtc::PeerConnectionFactory::Dispose();
-}
-
 static Napi::Object Init(Napi::Env env, Napi::Object exports) {
+  if (!node_webrtc::AddonState::Init(env)) {
+    return exports;
+  }
   node_webrtc::AsyncContextReleaser::Init(env, exports);
   node_webrtc::ErrorFactory::Init(env, exports);
   node_webrtc::GetDisplayMedia::Init(env, exports);
@@ -63,11 +61,6 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
 #ifdef DEBUG
   node_webrtc::Test::Init(env, exports);
 #endif
-
-  auto status = napi_add_env_cleanup_hook(env, [](void*) {
-    dispose(nullptr);
-  }, nullptr);
-  assert(status == napi_ok);
 
   return exports;
 }

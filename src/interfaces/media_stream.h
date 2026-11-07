@@ -13,6 +13,7 @@
 #include <webrtc/api/scoped_refptr.h>
 
 #include "src/converters/napi.h"
+#include "src/node/addon_state.h"
 #include "src/node/wrap.h"
 
 namespace webrtc { class MediaStreamInterface; }
@@ -32,13 +33,14 @@ class MediaStream
 
   static void Init(Napi::Env, Napi::Object);
 
-  static Napi::FunctionReference& constructor();
+  static Napi::FunctionReference& constructor(Napi::Env);
 
-  static ::node_webrtc::Wrap <
+  using Wrapper = ::node_webrtc::Wrap <
   MediaStream*,
   rtc::scoped_refptr<webrtc::MediaStreamInterface>,
   PeerConnectionFactory*
-  > * wrap();
+  >;
+  static Wrapper* wrap(AddonState&);
 
   rtc::scoped_refptr<webrtc::MediaStreamInterface> stream();
 
@@ -62,17 +64,19 @@ class MediaStream
 
     ~Impl();
 
-    explicit Impl(PeerConnectionFactory* factory = nullptr);
+    Impl() = default;
 
-    Impl(std::vector<MediaStreamTrack*>&& tracks, PeerConnectionFactory* factory = nullptr);
+    explicit Impl(Napi::Env);
 
-    Impl(rtc::scoped_refptr<webrtc::MediaStreamInterface>&& stream, PeerConnectionFactory* factory = nullptr);
+    Impl(Napi::Env, std::vector<MediaStreamTrack*>&& tracks, PeerConnectionFactory* factory = nullptr);
 
-    Impl(const RTCMediaStreamInit& init, PeerConnectionFactory* factory = nullptr);
+    Impl(rtc::scoped_refptr<webrtc::MediaStreamInterface>&& stream, PeerConnectionFactory* factory);
 
-    PeerConnectionFactory* _factory;
+    Impl(Napi::Env, const RTCMediaStreamInit& init);
+
+    PeerConnectionFactory* _factory = nullptr;
     rtc::scoped_refptr<webrtc::MediaStreamInterface> _stream;
-    bool _shouldReleaseFactory;
+    bool _shouldReleaseFactory = false;
   };
 
   static MediaStream* Create(
@@ -92,6 +96,7 @@ class MediaStream
 
   std::vector<rtc::scoped_refptr<webrtc::MediaStreamTrackInterface>> tracks();
 
+  AddonState::Ptr _addon;
   Impl _impl;
 };
 

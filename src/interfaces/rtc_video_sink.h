@@ -30,8 +30,6 @@ class RTCVideoSink
 
   void OnFrame(const webrtc::VideoFrame& frame) override;
 
-  static Napi::FunctionReference& constructor();
-
  protected:
   void Stop() override;
 

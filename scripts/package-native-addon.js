@@ -17,7 +17,7 @@ const targetPlatform = process.env.TARGET_PLATFORM || process.platform;
 const targetArch = process.env.TARGET_ARCH || process.arch;
 const archive = join(
   stage,
-  `wrtc-v${packageJson.version}-napi-v3-${targetPlatform}-${targetArch}.tar.gz`,
+  `wrtc-v${packageJson.version}-napi-v6-${targetPlatform}-${targetArch}.tar.gz`,
 );
 
 if (!existsSync(addon)) {

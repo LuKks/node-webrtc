@@ -64,8 +64,6 @@ class RTCPeerConnection
 
   static void Init(Napi::Env, Napi::Object);
 
-  static Napi::FunctionReference& constructor();
-
   void SaveLastSdp(const RTCSessionDescriptionInit& lastSdp);
 
   // Only inspect this from the Node thread, where Close clears the connection.
@@ -130,8 +128,8 @@ class RTCPeerConnection
   MediaStreamTrack* ReceiverTrack(rtc::scoped_refptr<webrtc::RtpReceiverInterface>);
   std::vector<Napi::ObjectReference> _receiverTracks;
 
-  PeerConnectionFactory* _factory;
-  bool _shouldReleaseFactory;
+  PeerConnectionFactory* _factory = nullptr;
+  bool _shouldReleaseFactory = false;
 
   std::vector<RTCDataChannel*> _channels;
 };

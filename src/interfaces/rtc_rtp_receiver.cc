@@ -24,9 +24,8 @@
 
 namespace node_webrtc {
 
-Napi::FunctionReference& RTCRtpReceiver::constructor() {
-  static Napi::FunctionReference constructor;
-  return constructor;
+Napi::FunctionReference& RTCRtpReceiver::constructor(Napi::Env env) {
+  return AddonState::Constructor<RTCRtpReceiver>(env);
 }
 
 RTCRtpReceiver::RTCRtpReceiver(const Napi::CallbackInfo& info)
@@ -43,25 +42,24 @@ RTCRtpReceiver::RTCRtpReceiver(const Napi::CallbackInfo& info)
   _factory->Ref();
 
   _receiver = std::move(receiver);
-  MediaStreamTrack::wrap()->GetOrCreate(_factory, _receiver->track())->InitializeRemote();
+  MediaStreamTrack::wrap(addon())->GetOrCreate(_factory, _receiver->track())->InitializeRemote();
 }
 
 RTCRtpReceiver::~RTCRtpReceiver() {
-  Napi::HandleScope scope(PeerConnectionFactory::constructor().Env());
   _factory->Unref();
   _factory = nullptr;
 
-  wrap()->Release(this);
+  wrap(addon())->Release(this);
 }  // NOLINT
 
 Napi::Value RTCRtpReceiver::GetTrack(const Napi::CallbackInfo&) {
-  return MediaStreamTrack::wrap()->GetOrCreate(_factory, _receiver->track())->Value();
+  return MediaStreamTrack::wrap(addon())->GetOrCreate(_factory, _receiver->track())->Value();
 }
 
 Napi::Value RTCRtpReceiver::GetTransport(const Napi::CallbackInfo& info) {
   auto transport = _receiver->dtls_transport();
   return transport
-      ? RTCDtlsTransport::wrap()->GetOrCreate(_factory, transport)->Value()
+      ? RTCDtlsTransport::wrap(addon())->GetOrCreate(_factory, transport)->Value()
       : info.Env().Null();
 }
 
@@ -72,7 +70,7 @@ Napi::Value RTCRtpReceiver::GetRtcpTransport(const Napi::CallbackInfo& info) {
 Napi::Value RTCRtpReceiver::GetCapabilities(const Napi::CallbackInfo& info) {
   CONVERT_ARGS_OR_THROW_AND_RETURN_NAPI(info, kindString, std::string)
   if (kindString == "audio" || kindString == "video") {
-    auto factory = PeerConnectionFactory::GetOrCreateDefault();
+    auto factory = PeerConnectionFactory::GetOrCreateDefault(info.Env());
     auto kind = kindString == "audio" ? webrtc::MediaType::AUDIO : webrtc::MediaType::VIDEO;
     auto capabilities = factory->factory()->GetRtpReceiverCapabilities(kind);
     factory->Release();
@@ -112,26 +110,17 @@ Napi::Value RTCRtpReceiver::GetSynchronizationSources(const Napi::CallbackInfo& 
   return result;
 }
 
-Wrap <
-RTCRtpReceiver*,
-rtc::scoped_refptr<webrtc::RtpReceiverInterface>,
-PeerConnectionFactory*
-> * RTCRtpReceiver::wrap() {
-  static auto wrap = new node_webrtc::Wrap <
-  RTCRtpReceiver*,
-  rtc::scoped_refptr<webrtc::RtpReceiverInterface>,
-  PeerConnectionFactory*
-  > (RTCRtpReceiver::Create);
-  return wrap;
+RTCRtpReceiver::Wrapper* RTCRtpReceiver::wrap(AddonState& addon) {
+  return addon.Wrapper<Wrapper>(Create);
 }
 
 RTCRtpReceiver* RTCRtpReceiver::Create(
     PeerConnectionFactory* factory,
     rtc::scoped_refptr<webrtc::RtpReceiverInterface> receiver) {
-  auto env = constructor().Env();
+  auto env = factory->Env();
   Napi::HandleScope scope(env);
 
-  auto object = constructor().New({
+  auto object = constructor(env).New({
     factory->Value(),
     Napi::External<rtc::scoped_refptr<webrtc::RtpReceiverInterface>>::New(env, &receiver)
   });
@@ -150,8 +139,7 @@ void RTCRtpReceiver::Init(Napi::Env env, Napi::Object exports) {
     StaticMethod("getCapabilities", &RTCRtpReceiver::GetCapabilities)
   });
 
-  constructor() = Napi::Persistent(func);
-  constructor().SuppressDestruct();
+  constructor(env) = Napi::Persistent(func);
 
   exports.Set("RTCRtpReceiver", func);
 }
@@ -159,7 +147,7 @@ void RTCRtpReceiver::Init(Napi::Env env, Napi::Object exports) {
 FROM_NAPI_IMPL(RTCRtpReceiver*, value) {
   return From<Napi::Object>(value).FlatMap<RTCRtpReceiver*>([](Napi::Object object) {
     auto isRTCRtpReceiver = false;
-    napi_instanceof(object.Env(), object, RTCRtpReceiver::constructor().Value(), &isRTCRtpReceiver);
+    napi_instanceof(object.Env(), object, RTCRtpReceiver::constructor(object.Env()).Value(), &isRTCRtpReceiver);
     if (object.Env().IsExceptionPending()) {
       return Validation<RTCRtpReceiver*>::Invalid(object.Env().GetAndClearPendingException().Message());
     } else if (!isRTCRtpReceiver) {

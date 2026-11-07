@@ -22,20 +22,19 @@
 
 namespace node_webrtc {
 
-Napi::FunctionReference& MediaStream::constructor() {
-  static Napi::FunctionReference constructor;
-  return constructor;
+Napi::FunctionReference& MediaStream::constructor(Napi::Env env) {
+  return AddonState::Constructor<MediaStream>(env);
 }
 
-MediaStream::Impl::Impl(PeerConnectionFactory* factory)
-  : _factory(factory ? factory : PeerConnectionFactory::GetOrCreateDefault())
+MediaStream::Impl::Impl(Napi::Env env)
+  : _factory(PeerConnectionFactory::GetOrCreateDefault(env))
   , _stream(_factory->factory()->CreateLocalMediaStream(rtc::CreateRandomUuid()))
-  , _shouldReleaseFactory(!factory) {
+  , _shouldReleaseFactory(true) {
   _factory->Ref();
 }
 
-MediaStream::Impl::Impl(std::vector<MediaStreamTrack*>&& tracks, PeerConnectionFactory* factory)
-  : _factory(factory ? factory : tracks.empty() ? PeerConnectionFactory::GetOrCreateDefault() : tracks[0]->factory())
+MediaStream::Impl::Impl(Napi::Env env, std::vector<MediaStreamTrack*>&& tracks, PeerConnectionFactory* factory)
+  : _factory(factory ? factory : tracks.empty() ? PeerConnectionFactory::GetOrCreateDefault(env) : tracks[0]->factory())
   , _stream(_factory->factory()->CreateLocalMediaStream(rtc::CreateRandomUuid()))
   , _shouldReleaseFactory(!factory && tracks.empty()) {
   _factory->Ref();
@@ -55,17 +54,15 @@ MediaStream::Impl::Impl(std::vector<MediaStreamTrack*>&& tracks, PeerConnectionF
 MediaStream::Impl::Impl(
     rtc::scoped_refptr<webrtc::MediaStreamInterface>&& stream,
     PeerConnectionFactory* factory)
-  : _factory(factory ? factory : PeerConnectionFactory::GetOrCreateDefault())
-  , _stream(stream)
-  , _shouldReleaseFactory(!factory) {
+  : _factory(factory)
+  , _stream(std::move(stream)) {
   _factory->Ref();
 }
 
-MediaStream::Impl::Impl(const RTCMediaStreamInit& init,
-    PeerConnectionFactory* factory)
-  : _factory(factory ? factory : PeerConnectionFactory::GetOrCreateDefault())
+MediaStream::Impl::Impl(Napi::Env env, const RTCMediaStreamInit& init)
+  : _factory(PeerConnectionFactory::GetOrCreateDefault(env))
   , _stream(_factory->factory()->CreateLocalMediaStream(init.id))
-  , _shouldReleaseFactory(!factory) {
+  , _shouldReleaseFactory(true) {
   _factory->Ref();
 }
 
@@ -74,14 +71,10 @@ MediaStream::Impl::~Impl() {
   // factory's signaling/worker threads are still alive.
   _stream = nullptr;
   if (!_factory) return;
-  Napi::HandleScope scope(PeerConnectionFactory::constructor().Env());
-  if (_factory) {
-    _factory->Unref();  // NOLINT
-    _factory = nullptr;
-  }
   if (_shouldReleaseFactory) {
-    PeerConnectionFactory::Release();
+    _factory->Release();
   }
+  _factory->Unref();
 }
 
 std::vector<rtc::scoped_refptr<webrtc::MediaStreamTrackInterface>> MediaStream::tracks() {
@@ -99,8 +92,11 @@ rtc::scoped_refptr<webrtc::MediaStreamInterface> MediaStream::stream() {
   return _impl._stream;
 }
 
-MediaStream::MediaStream(const Napi::CallbackInfo& info): Napi::ObjectWrap<MediaStream>(info) {
-  napi_add_env_cleanup_hook(info.Env(), ReleaseNativeStream, this);
+MediaStream::MediaStream(const Napi::CallbackInfo& info)
+  : Napi::ObjectWrap<MediaStream>(info)
+  , _addon(AddonState::Get(info.Env())) {
+  const auto env = info.Env();
+  napi_add_env_cleanup_hook(env, ReleaseNativeStream, this);
   auto maybeEither = From<Either<std::tuple<Napi::Object COMMA Napi::External<rtc::scoped_refptr<webrtc::MediaStreamInterface>>> COMMA   // Either1 - Remote MediaStream OR Either2
       Either<std::vector<MediaStreamTrack*> COMMA                                                                  // Either2 - Array of MediaStreamTracks OR Either3
       Either<MediaStream* COMMA                                                                                  // Either3 - Local MediaStream OR Maybe
@@ -123,7 +119,7 @@ MediaStream::MediaStream(const Napi::CallbackInfo& info): Napi::ObjectWrap<Media
     if (either2.IsLeft()) {
       // 2. Local MediaStream, Array of MediaStreamTracks
       auto tracks = either2.UnsafeFromLeft();
-      _impl = MediaStream::Impl(std::move(tracks));
+      _impl = MediaStream::Impl(env, std::move(tracks));
     } else {
       auto either3 = either2.UnsafeFromRight();
       if (either3.IsLeft()) {
@@ -132,18 +128,18 @@ MediaStream::MediaStream(const Napi::CallbackInfo& info): Napi::ObjectWrap<Media
         auto factory = existingStream->_impl._factory;
         auto tracks = std::vector<MediaStreamTrack*>();
         for (auto const& track : existingStream->tracks()) {
-          tracks.push_back(MediaStreamTrack::wrap()->GetOrCreate(factory, track));
+          tracks.push_back(MediaStreamTrack::wrap(*_addon)->GetOrCreate(factory, track));
         }
-        _impl = MediaStream::Impl(std::move(tracks), factory);
+        _impl = MediaStream::Impl(env, std::move(tracks), factory);
       } else {
         // Check if RTCMediaStreamInit was provided
         auto maybeMediaStreamInit = either3.UnsafeFromRight();
         if (maybeMediaStreamInit.IsJust()) {
           // 4. Local MediaStream with Custom MediaStreamId
-          _impl = MediaStream::Impl(maybeMediaStreamInit.UnsafeFromJust());
+          _impl = MediaStream::Impl(env, maybeMediaStreamInit.UnsafeFromJust());
         } else {
           // 5. Local MediaStream
-          _impl = MediaStream::Impl();
+          _impl = MediaStream::Impl(env);
         }
       }
     }
@@ -154,7 +150,7 @@ MediaStream::~MediaStream() {
   if (!_environmentReleased) {
     napi_remove_env_cleanup_hook(Env(), ReleaseNativeStream, this);
   }
-  wrap()->Release(this);
+  wrap(*_addon)->Release(this);
 }
 
 void MediaStream::ReleaseNativeStream(void* data) {
@@ -162,7 +158,7 @@ void MediaStream::ReleaseNativeStream(void* data) {
   stream->_environmentReleased = true;
   // Both the wrapper and its identity cache own native references. Release
   // them before finalizers can destroy the signaling/worker threads.
-  wrap()->Release(stream);
+  wrap(*stream->_addon)->Release(stream);
   stream->_impl._stream = nullptr;
   // Environment finalization owns all remaining JS references. Avoid touching
   // a factory wrapper from a later finalizer after it may have been freed.
@@ -178,7 +174,7 @@ Napi::Value MediaStream::GetId(const Napi::CallbackInfo& info) {
 Napi::Value MediaStream::GetActive(const Napi::CallbackInfo& info) {
   auto active = false;
   for (auto const& track : tracks()) {
-    auto mediaStreamTrack = MediaStreamTrack::wrap()->GetOrCreate(_impl._factory, track);
+    auto mediaStreamTrack = MediaStreamTrack::wrap(*_addon)->GetOrCreate(_impl._factory, track);
     active = active || mediaStreamTrack->active();
   }
   CONVERT_OR_THROW_AND_RETURN_NAPI(info.Env(), active, result, Napi::Value)
@@ -188,7 +184,7 @@ Napi::Value MediaStream::GetActive(const Napi::CallbackInfo& info) {
 Napi::Value MediaStream::GetAudioTracks(const Napi::CallbackInfo& info) {
   auto tracks = std::vector<MediaStreamTrack*>();
   for (auto const& track : _impl._stream->GetAudioTracks()) {
-    auto mediaStreamTrack = MediaStreamTrack::wrap()->GetOrCreate(_impl._factory, track);
+    auto mediaStreamTrack = MediaStreamTrack::wrap(*_addon)->GetOrCreate(_impl._factory, track);
     tracks.push_back(mediaStreamTrack);
   }
   CONVERT_OR_THROW_AND_RETURN_NAPI(info.Env(), tracks, result, Napi::Value)
@@ -198,7 +194,7 @@ Napi::Value MediaStream::GetAudioTracks(const Napi::CallbackInfo& info) {
 Napi::Value MediaStream::GetVideoTracks(const Napi::CallbackInfo& info) {
   auto tracks = std::vector<MediaStreamTrack*>();
   for (auto const& track : _impl._stream->GetVideoTracks()) {
-    auto mediaStreamTrack = MediaStreamTrack::wrap()->GetOrCreate(_impl._factory, track);
+    auto mediaStreamTrack = MediaStreamTrack::wrap(*_addon)->GetOrCreate(_impl._factory, track);
     tracks.push_back(mediaStreamTrack);
   }
   CONVERT_OR_THROW_AND_RETURN_NAPI(info.Env(), tracks, result, Napi::Value)
@@ -208,7 +204,7 @@ Napi::Value MediaStream::GetVideoTracks(const Napi::CallbackInfo& info) {
 Napi::Value MediaStream::GetTracks(const Napi::CallbackInfo& info) {
   auto tracks = std::vector<MediaStreamTrack*>();
   for (auto const& track : this->tracks()) {
-    auto mediaStreamTrack = MediaStreamTrack::wrap()->GetOrCreate(_impl._factory, track);
+    auto mediaStreamTrack = MediaStreamTrack::wrap(*_addon)->GetOrCreate(_impl._factory, track);
     tracks.push_back(mediaStreamTrack);
   }
   CONVERT_OR_THROW_AND_RETURN_NAPI(info.Env(), tracks, result, Napi::Value)
@@ -219,13 +215,13 @@ Napi::Value MediaStream::GetTrackById(const Napi::CallbackInfo& info) {
   CONVERT_ARGS_OR_THROW_AND_RETURN_NAPI(info, label, std::string)
   auto audioTrack = _impl._stream->FindAudioTrack(label);
   if (audioTrack) {
-    auto track = MediaStreamTrack::wrap()->GetOrCreate(_impl._factory, audioTrack);
+    auto track = MediaStreamTrack::wrap(*_addon)->GetOrCreate(_impl._factory, audioTrack);
     CONVERT_OR_THROW_AND_RETURN_NAPI(info.Env(), track, result, Napi::Value)
     return result;
   }
   auto videoTrack = _impl._stream->FindVideoTrack(label);
   if (videoTrack) {
-    auto track = MediaStreamTrack::wrap()->GetOrCreate(_impl._factory, videoTrack);
+    auto track = MediaStreamTrack::wrap(*_addon)->GetOrCreate(_impl._factory, videoTrack);
     CONVERT_OR_THROW_AND_RETURN_NAPI(info.Env(), track, result, Napi::Value)
     return result;
   }
@@ -276,31 +272,22 @@ Napi::Value MediaStream::Clone(const Napi::CallbackInfo& info) {
       clonedStream->AddTrack(clonedTrack);
     }
   }
-  auto mediaStream = MediaStream::wrap()->GetOrCreate(_impl._factory, clonedStream);
+  auto mediaStream = MediaStream::wrap(*_addon)->GetOrCreate(_impl._factory, clonedStream);
   CONVERT_OR_THROW_AND_RETURN_NAPI(info.Env(), mediaStream, result, Napi::Value)
   return result;
 }
 
-Wrap <
-MediaStream*,
-rtc::scoped_refptr<webrtc::MediaStreamInterface>,
-PeerConnectionFactory*
-> * MediaStream::wrap() {
-  static auto wrap = new node_webrtc::Wrap <
-  MediaStream*,
-  rtc::scoped_refptr<webrtc::MediaStreamInterface>,
-  PeerConnectionFactory*
-  > (MediaStream::Create);
-  return wrap;
+MediaStream::Wrapper* MediaStream::wrap(AddonState& addon) {
+  return addon.Wrapper<Wrapper>(Create);
 }
 
 MediaStream* MediaStream::Create(
     PeerConnectionFactory* factory,
     rtc::scoped_refptr<webrtc::MediaStreamInterface> stream) {
-  auto env = MediaStream::constructor().Env();
+  auto env = factory->Env();
   Napi::HandleScope scope(env);
 
-  auto object = MediaStream::constructor().New({
+  auto object = MediaStream::constructor(env).New({
     factory->Value(),
     Napi::External<rtc::scoped_refptr<webrtc::MediaStreamInterface>>::New(env, &stream)
   });
@@ -323,8 +310,7 @@ void MediaStream::Init(Napi::Env env, Napi::Object exports) {
     InstanceMethod("_clone", &MediaStream::Clone),
   });
 
-  constructor() = Napi::Persistent(func);
-  constructor().SuppressDestruct();
+  constructor(env) = Napi::Persistent(func);
 
   exports.Set("MediaStream", func);
 }
@@ -332,7 +318,7 @@ void MediaStream::Init(Napi::Env env, Napi::Object exports) {
 FROM_NAPI_IMPL(MediaStream*, value) {
   return From<Napi::Object>(value).FlatMap<MediaStream*>([](Napi::Object object) {
     auto isMediaStream = false;
-    napi_instanceof(object.Env(), object, MediaStream::constructor().Value(), &isMediaStream);
+    napi_instanceof(object.Env(), object, MediaStream::constructor(object.Env()).Value(), &isMediaStream);
     if (object.Env().IsExceptionPending()) {
       return Validation<MediaStream*>::Invalid(object.Env().GetAndClearPendingException().Message());
     } else if (!isMediaStream) {

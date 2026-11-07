@@ -17,9 +17,8 @@
 
 namespace node_webrtc {
 
-Napi::FunctionReference& RTCSctpTransport::constructor() {
-  static Napi::FunctionReference constructor;
-  return constructor;
+Napi::FunctionReference& RTCSctpTransport::constructor(Napi::Env env) {
+  return AddonState::Constructor<RTCSctpTransport>(env);
 }
 
 RTCSctpTransport::RTCSctpTransport(const Napi::CallbackInfo& info)
@@ -48,10 +47,9 @@ RTCSctpTransport::RTCSctpTransport(const Napi::CallbackInfo& info)
 }
 
 RTCSctpTransport::~RTCSctpTransport() {
-  Napi::HandleScope scope(PeerConnectionFactory::constructor().Env());
   _factory->Unref();
   _factory = nullptr;
-  wrap()->Release(this);
+  wrap(addon())->Release(this);
 }  // NOLINT
 
 void RTCSctpTransport::Stop() {
@@ -59,26 +57,17 @@ void RTCSctpTransport::Stop() {
   AsyncObjectWrapWithLoop<RTCSctpTransport>::Stop();
 }
 
-Wrap <
-RTCSctpTransport*,
-rtc::scoped_refptr<webrtc::SctpTransportInterface>,
-PeerConnectionFactory*
-> * RTCSctpTransport::wrap() {
-  static auto wrap = new node_webrtc::Wrap <
-  RTCSctpTransport*,
-  rtc::scoped_refptr<webrtc::SctpTransportInterface>,
-  PeerConnectionFactory*
-  > (RTCSctpTransport::Create);
-  return wrap;
+RTCSctpTransport::Wrapper* RTCSctpTransport::wrap(AddonState& addon) {
+  return addon.Wrapper<Wrapper>(Create);
 }
 
 RTCSctpTransport* RTCSctpTransport::Create(
     PeerConnectionFactory* factory,
     rtc::scoped_refptr<webrtc::SctpTransportInterface> transport) {
-  auto env = constructor().Env();
+  auto env = factory->Env();
   Napi::HandleScope scope(env);
 
-  auto object = constructor().New({
+  auto object = constructor(env).New({
     factory->Value(),
     Napi::External<rtc::scoped_refptr<webrtc::SctpTransportInterface>>::New(env, &transport)
   });
@@ -101,7 +90,7 @@ void RTCSctpTransport::OnStateChange(const webrtc::SctpTransportInformation info
 }
 
 Napi::Value RTCSctpTransport::GetTransport(const Napi::CallbackInfo&) {
-  return RTCDtlsTransport::wrap()->GetOrCreate(_factory, _dtls_transport)->Value();
+  return RTCDtlsTransport::wrap(addon())->GetOrCreate(_factory, _dtls_transport)->Value();
 }
 
 Napi::Value RTCSctpTransport::GetState(const Napi::CallbackInfo& info) {
@@ -127,8 +116,7 @@ void RTCSctpTransport::Init(Napi::Env env, Napi::Object exports) {
     InstanceAccessor("maxChannels", &RTCSctpTransport::GetMaxChannels, nullptr)
   });
 
-  constructor() = Napi::Persistent(func);
-  constructor().SuppressDestruct();
+  constructor(env) = Napi::Persistent(func);
 
   exports.Set("RTCSctpTransport", func);
 }

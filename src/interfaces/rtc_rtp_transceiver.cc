@@ -25,9 +25,8 @@
 
 namespace node_webrtc {
 
-Napi::FunctionReference& RTCRtpTransceiver::constructor() {
-  static Napi::FunctionReference constructor;
-  return constructor;
+Napi::FunctionReference& RTCRtpTransceiver::constructor(Napi::Env env) {
+  return AddonState::Constructor<RTCRtpTransceiver>(env);
 }
 
 RTCRtpTransceiver::RTCRtpTransceiver(
@@ -48,11 +47,10 @@ RTCRtpTransceiver::RTCRtpTransceiver(
 }
 
 RTCRtpTransceiver::~RTCRtpTransceiver() {
-  Napi::HandleScope scope(PeerConnectionFactory::constructor().Env());
   _factory->Unref();
   _factory = nullptr;
 
-  wrap()->Release(this);
+  wrap(addon())->Release(this);
 }
 
 Napi::Value RTCRtpTransceiver::GetMid(const Napi::CallbackInfo& info) {
@@ -61,11 +59,11 @@ Napi::Value RTCRtpTransceiver::GetMid(const Napi::CallbackInfo& info) {
 }
 
 Napi::Value RTCRtpTransceiver::GetSender(const Napi::CallbackInfo&) {
-  return RTCRtpSender::wrap()->GetOrCreate(_factory, _transceiver->sender())->Value();
+  return RTCRtpSender::wrap(addon())->GetOrCreate(_factory, _transceiver->sender())->Value();
 }
 
 Napi::Value RTCRtpTransceiver::GetReceiver(const Napi::CallbackInfo&) {
-  return RTCRtpReceiver::wrap()->GetOrCreate(_factory, _transceiver->receiver())->Value();
+  return RTCRtpReceiver::wrap(addon())->GetOrCreate(_factory, _transceiver->receiver())->Value();
 }
 
 Napi::Value RTCRtpTransceiver::GetStopped(const Napi::CallbackInfo& info) {
@@ -108,26 +106,17 @@ Napi::Value RTCRtpTransceiver::SetCodecPreferences(const Napi::CallbackInfo& inf
   return info.Env().Undefined();
 }
 
-Wrap <
-RTCRtpTransceiver*,
-rtc::scoped_refptr<webrtc::RtpTransceiverInterface>,
-PeerConnectionFactory*
-> * RTCRtpTransceiver::wrap() {
-  static auto wrap = new node_webrtc::Wrap <
-  RTCRtpTransceiver*,
-  rtc::scoped_refptr<webrtc::RtpTransceiverInterface>,
-  PeerConnectionFactory*
-  > (RTCRtpTransceiver::Create);
-  return wrap;
+RTCRtpTransceiver::Wrapper* RTCRtpTransceiver::wrap(AddonState& addon) {
+  return addon.Wrapper<Wrapper>(Create);
 }
 
 RTCRtpTransceiver* RTCRtpTransceiver::Create(
     PeerConnectionFactory* factory,
     rtc::scoped_refptr<webrtc::RtpTransceiverInterface> transceiver) {
-  auto env = constructor().Env();
+  auto env = factory->Env();
   Napi::HandleScope scope(env);
 
-  auto object = constructor().New({
+  auto object = constructor(env).New({
     factory->Value(),
     Napi::External<rtc::scoped_refptr<webrtc::RtpTransceiverInterface>>::New(env, &transceiver)
   });
@@ -147,8 +136,7 @@ void RTCRtpTransceiver::Init(Napi::Env env, Napi::Object exports) {
     InstanceMethod("setCodecPreferences", &RTCRtpTransceiver::SetCodecPreferences),
   });
 
-  constructor() = Napi::Persistent(func);
-  constructor().SuppressDestruct();
+  constructor(env) = Napi::Persistent(func);
 
   exports.Set("RTCRtpTransceiver", func);
 }

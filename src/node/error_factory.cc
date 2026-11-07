@@ -12,10 +12,10 @@
 #include "src/converters.h"
 #include "src/converters/napi.h"  // IWYU pragma: keep
 #include "src/functional/validation.h"
+#include "src/node/addon_state.h"
 
-Napi::FunctionReference& node_webrtc::ErrorFactory::DOMExceptionConstructor() {
-  static Napi::FunctionReference func;
-  return func;
+Napi::FunctionReference& node_webrtc::ErrorFactory::DOMExceptionConstructor(Napi::Env env) {
+  return AddonState::Constructor<ErrorFactory>(env);
 }
 
 void node_webrtc::ErrorFactory::Init(Napi::Env env, Napi::Object exports) {
@@ -83,8 +83,8 @@ const char* node_webrtc::ErrorFactory::DOMExceptionNameToString(DOMExceptionName
 Napi::Value node_webrtc::ErrorFactory::CreateDOMException(Napi::Env env, const std::string message, const DOMExceptionName name) {
   Napi::EscapableHandleScope scope(env);
   auto prefix = DOMExceptionNameToString(name);
-  if (!DOMExceptionConstructor().IsEmpty()) {
-    return scope.Escape(DOMExceptionConstructor().New({
+  if (!DOMExceptionConstructor(env).IsEmpty()) {
+    return scope.Escape(DOMExceptionConstructor(env).New({
       Napi::String::New(env, message),
       Napi::String::New(env, prefix)
     }));
@@ -98,7 +98,6 @@ Napi::Value node_webrtc::ErrorFactory::SetDOMException(const Napi::CallbackInfo&
     Napi::TypeError::New(info.Env(), maybeDOMException.ToErrors()[0]).ThrowAsJavaScriptException();
     return info.Env().Undefined();
   }
-  DOMExceptionConstructor() = Napi::Persistent(maybeDOMException.UnsafeFromValid());
-  DOMExceptionConstructor().SuppressDestruct();
+  DOMExceptionConstructor(info.Env()) = Napi::Persistent(maybeDOMException.UnsafeFromValid());
   return info.Env().Undefined();
 }

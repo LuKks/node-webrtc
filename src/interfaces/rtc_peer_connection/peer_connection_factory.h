@@ -8,7 +8,6 @@
 #pragma once
 
 #include <memory>
-#include <mutex>
 
 #include <node-addon-api/napi.h>
 #include <webrtc/api/peer_connection_interface.h>
@@ -16,6 +15,7 @@
 #include <webrtc/modules/audio_device/include/audio_device.h>
 
 #include "src/functional/maybe.h"
+#include "src/node/addon_state.h"
 
 namespace webrtc {
 
@@ -36,12 +36,14 @@ class PeerConnectionFactory
    * Get or create the default PeerConnectionFactory. The default uses
    * webrtc::AudioDeviceModule::AudioLayer::kDummyAudio. Call {@link Release} when done.
    */
-  static PeerConnectionFactory* GetOrCreateDefault();
+  static PeerConnectionFactory* GetOrCreateDefault(Napi::Env);
 
   /**
    * Release a reference to the default PeerConnectionFactory.
    */
-  static void Release();
+  static void Release(AddonState&);
+
+  void Release() { Release(*_addon); }
 
   /**
    * Get the underlying webrtc::PeerConnectionFactoryInterface.
@@ -54,17 +56,15 @@ class PeerConnectionFactory
 
   static void Init(Napi::Env, Napi::Object);
 
-  static Napi::FunctionReference& constructor();
+  static Napi::FunctionReference& constructor(Napi::Env);
 
-  static void Dispose();
+  AddonState& addon() const { return *_addon; }
 
   std::unique_ptr<rtc::Thread> _signalingThread;
   std::unique_ptr<rtc::Thread> _workerThread;
 
  private:
-  static PeerConnectionFactory* _default;
-  static std::mutex _mutex;
-  static int _references;
+  AddonState::Ptr _addon;
 
   rtc::scoped_refptr<webrtc::PeerConnectionFactoryInterface> _factory;
   rtc::scoped_refptr<webrtc::AudioDeviceModule> _audioDeviceModule;

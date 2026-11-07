@@ -12,28 +12,25 @@ namespace node_webrtc {
 template <typename T>
 class AsyncObjectWrap: public Napi::ObjectWrap<T> {
  private:
-  Napi::AsyncContext* _async_context;
+  AddonState::Ptr _addon;
+  std::unique_ptr<Napi::AsyncContext> _async_context;
   std::mutex _async_context_mutex;
 
   void DestroyAsyncContext() {
-    _async_context_mutex.lock();
-    if (_async_context) {
-      auto releaser = AsyncContextReleaser::GetDefault();
-      if (releaser) {
-        releaser->Release(_async_context);
-      }
-      _async_context = nullptr;
+    std::lock_guard<std::mutex> lock(_async_context_mutex);
+    if (auto releaser = _addon->asyncContextReleaser) {
+      releaser->Release(std::move(_async_context));
     }
-    _async_context_mutex.unlock();
   }
 
  public:
   AsyncObjectWrap(
       const char* name,
       const Napi::CallbackInfo& info):
-    Napi::ObjectWrap<T>(info) {
-    this->_async_context = new Napi::AsyncContext(info.Env(), name, this->Value());
-    AsyncContextReleaser::GetDefault();
+    Napi::ObjectWrap<T>(info),
+    _addon(AddonState::Get(info.Env())),
+    _async_context(std::make_unique<Napi::AsyncContext>(info.Env(), name, this->Value())) {
+    AsyncContextReleaser::EnsureInitialized(info.Env());
   }
 
   ~AsyncObjectWrap() override {
@@ -41,10 +38,12 @@ class AsyncObjectWrap: public Napi::ObjectWrap<T> {
   }
 
   Napi::AsyncContext* context() {
-    return _async_context;
+    return _async_context.get();
   }
 
  protected:
+  AddonState& addon() const { return *_addon; }
+
   void MakeCallback(const char* name, const std::initializer_list<napi_value>& args) {
     auto self = this->Value();
     auto maybeFunction = self.Get(name);

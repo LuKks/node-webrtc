@@ -30,11 +30,12 @@ class RTCSctpTransport
 
   static void Init(Napi::Env, Napi::Object);
 
-  static ::node_webrtc::Wrap <
+  using Wrapper = ::node_webrtc::Wrap <
   RTCSctpTransport*,
   rtc::scoped_refptr<webrtc::SctpTransportInterface>,
   PeerConnectionFactory*
-  > * wrap();
+  >;
+  static Wrapper* wrap(AddonState&);
 
   void OnStateChange(webrtc::SctpTransportInformation) override;
 
@@ -42,7 +43,7 @@ class RTCSctpTransport
   void Stop() override;
 
  private:
-  static Napi::FunctionReference& constructor();
+  static Napi::FunctionReference& constructor(Napi::Env);
 
   static RTCSctpTransport* Create(
       PeerConnectionFactory*,

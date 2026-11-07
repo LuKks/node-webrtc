@@ -31,11 +31,12 @@ class RTCIceTransport
 
   static void Init(Napi::Env, Napi::Object);
 
-  static ::node_webrtc::Wrap <
+  using Wrapper = ::node_webrtc::Wrap <
   RTCIceTransport*,
   rtc::scoped_refptr<webrtc::IceTransportInterface>,
   PeerConnectionFactory*
-  > * wrap();
+  >;
+  static Wrapper* wrap(AddonState&);
 
   void OnRTCDtlsTransportStopped();
 
@@ -43,7 +44,7 @@ class RTCIceTransport
   void Stop() override;
 
  private:
-  static Napi::FunctionReference& constructor();
+  static Napi::FunctionReference& constructor(Napi::Env);
 
   static RTCIceTransport* Create(
       PeerConnectionFactory*,

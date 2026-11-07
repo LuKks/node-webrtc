@@ -59,9 +59,8 @@ class RTCDataChannel::MessageEvent final: public Event<RTCDataChannel> {
   std::unique_ptr<webrtc::DataBuffer> _buffer;
 };
 
-Napi::FunctionReference& RTCDataChannel::constructor() {
-  static Napi::FunctionReference constructor;
-  return constructor;
+Napi::FunctionReference& RTCDataChannel::constructor(Napi::Env env) {
+  return AddonState::Constructor<RTCDataChannel>(env);
 }
 
 DataChannelObserver::DataChannelObserver(PeerConnectionFactory* factory,
@@ -73,7 +72,6 @@ DataChannelObserver::DataChannelObserver(PeerConnectionFactory* factory,
 }
 
 DataChannelObserver::~DataChannelObserver() {
-  Napi::HandleScope scope(PeerConnectionFactory::constructor().Env());
   _factory->Unref();
   _factory = nullptr;
 }  // NOLINT
@@ -144,7 +142,7 @@ RTCDataChannel::~RTCDataChannel() {
   _factory->Unref();
   _factory = nullptr;
 
-  wrap()->Release(this);
+  wrap(addon())->Release(this);
 }  // NOLINT
 
 void RTCDataChannel::CleanupInternals() {
@@ -460,26 +458,17 @@ void RTCDataChannel::SetBinaryType(const Napi::CallbackInfo& info, const Napi::V
   _binaryType = maybeBinaryType.UnsafeFromValid();
 }
 
-Wrap <
-RTCDataChannel*,
-rtc::scoped_refptr<webrtc::DataChannelInterface>,
-node_webrtc::DataChannelObserver*
-> * RTCDataChannel::wrap() {
-  static auto wrap = new node_webrtc::Wrap <
-  RTCDataChannel*,
-  rtc::scoped_refptr<webrtc::DataChannelInterface>,
-  node_webrtc::DataChannelObserver*
-  > (RTCDataChannel::Create);
-  return wrap;
+RTCDataChannel::Wrapper* RTCDataChannel::wrap(AddonState& addon) {
+  return addon.Wrapper<Wrapper>(Create);
 }
 
 RTCDataChannel* RTCDataChannel::Create(
     node_webrtc::DataChannelObserver* observer,
     rtc::scoped_refptr<webrtc::DataChannelInterface>) {
-  auto env = constructor().Env();
+  auto env = observer->_factory->Env();
   Napi::HandleScope scope(env);
 
-  auto object = constructor().New({
+  auto object = constructor(env).New({
     Napi::External<node_webrtc::DataChannelObserver>::New(env, observer)
   });
 
@@ -503,8 +492,7 @@ void RTCDataChannel::Init(Napi::Env env, Napi::Object exports) {
     InstanceMethod("_send", &RTCDataChannel::Send)
   });
 
-  constructor() = Napi::Persistent(func);
-  constructor().SuppressDestruct();
+  constructor(env) = Napi::Persistent(func);
 
   exports.Set("RTCDataChannel", func);
 }

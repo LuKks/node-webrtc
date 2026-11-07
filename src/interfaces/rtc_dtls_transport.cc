@@ -29,9 +29,8 @@
 
 namespace node_webrtc {
 
-Napi::FunctionReference& RTCDtlsTransport::constructor() {
-  static Napi::FunctionReference constructor;
-  return constructor;
+Napi::FunctionReference& RTCDtlsTransport::constructor(Napi::Env env) {
+  return AddonState::Constructor<RTCDtlsTransport>(env);
 }
 
 static std::vector<rtc::Buffer> copy_certs(webrtc::DtlsTransportInformation information) {
@@ -66,7 +65,7 @@ RTCDtlsTransport::RTCDtlsTransport(const Napi::CallbackInfo& info)
   _transport = std::move(transport);
 
   // NOTE(mroberts): Ensure we create this.
-  RTCIceTransport::wrap()->GetOrCreate(_factory, _transport->ice_transport());
+  RTCIceTransport::wrap(addon())->GetOrCreate(_factory, _transport->ice_transport());
 
   _factory->_workerThread->BlockingCall([this]() {
     _transport->RegisterObserver(this);
@@ -80,14 +79,14 @@ RTCDtlsTransport::RTCDtlsTransport(const Napi::CallbackInfo& info)
 }
 
 RTCDtlsTransport::~RTCDtlsTransport() {
-  Napi::HandleScope scope(PeerConnectionFactory::constructor().Env());
+  wrap(addon())->Release(this);
   _factory->Unref();
   _factory = nullptr;
 }  // NOLINT
 
 void RTCDtlsTransport::Stop() {
   _transport->UnregisterObserver();
-  auto ice_transport = RTCIceTransport::wrap()->Get(_transport->ice_transport());
+  auto ice_transport = RTCIceTransport::wrap(addon())->Get(_transport->ice_transport());
   if (ice_transport) {
     ice_transport->OnRTCDtlsTransportStopped();
   }
@@ -134,7 +133,7 @@ void RTCDtlsTransport::OnError(webrtc::RTCError rtcError) {
 }
 
 Napi::Value RTCDtlsTransport::GetIceTransport(const Napi::CallbackInfo&) {
-  return RTCIceTransport::wrap()->GetOrCreate(_factory, _transport->ice_transport())->Value();
+  return RTCIceTransport::wrap(addon())->GetOrCreate(_factory, _transport->ice_transport())->Value();
 }
 
 Napi::Value RTCDtlsTransport::GetState(const Napi::CallbackInfo& info) {
@@ -155,26 +154,17 @@ Napi::Value RTCDtlsTransport::GetRemoteCertificates(const Napi::CallbackInfo& in
   return result;
 }
 
-Wrap <
-RTCDtlsTransport*,
-rtc::scoped_refptr<webrtc::DtlsTransportInterface>,
-PeerConnectionFactory*
-> * RTCDtlsTransport::wrap() {
-  static auto wrap = new node_webrtc::Wrap <
-  RTCDtlsTransport*,
-  rtc::scoped_refptr<webrtc::DtlsTransportInterface>,
-  PeerConnectionFactory*
-  > (RTCDtlsTransport::Create);
-  return wrap;
+RTCDtlsTransport::Wrapper* RTCDtlsTransport::wrap(AddonState& addon) {
+  return addon.Wrapper<Wrapper>(Create);
 }
 
 RTCDtlsTransport* RTCDtlsTransport::Create(
     PeerConnectionFactory* factory,
     rtc::scoped_refptr<webrtc::DtlsTransportInterface> transport) {
-  auto env = constructor().Env();
+  auto env = factory->Env();
   Napi::HandleScope scope(env);
 
-  auto object = constructor().New({
+  auto object = constructor(env).New({
     factory->Value(),
     Napi::External<rtc::scoped_refptr<webrtc::DtlsTransportInterface>>::New(env, &transport)
   });
@@ -189,8 +179,7 @@ void RTCDtlsTransport::Init(Napi::Env env, Napi::Object exports) {
     InstanceAccessor("state", &RTCDtlsTransport::GetState, nullptr)
   });
 
-  constructor() = Napi::Persistent(func);
-  constructor().SuppressDestruct();
+  constructor(env) = Napi::Persistent(func);
 
   exports.Set("RTCDtlsTransport", func);
 }

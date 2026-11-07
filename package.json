@@ -7,7 +7,7 @@
     "peer"
   ],
   "type": "module",
-  "version": "0.7.3",
+  "version": "0.7.4",
   "author": "Alan K <ack@modeswitch.org> (http://blog.modeswitch.org)",
   "homepage": "https://github.com/LuKks/node-webrtc",
   "bugs": "https://github.com/LuKks/node-webrtc/issues",

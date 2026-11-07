@@ -14,7 +14,7 @@ namespace node_webrtc {
   FROM_NAPI_IMPL(IFACE*, value) { \
     return From<Napi::Object>(value).FlatMap<IFACE*>([](auto object) { \
       auto isInstance = false; \
-      napi_instanceof(object.Env(), object, IFACE::constructor().Value(), &isInstance); \
+      napi_instanceof(object.Env(), object, IFACE::constructor(object.Env()).Value(), &isInstance); \
       if (object.Env().IsExceptionPending()) { \
         return Validation<IFACE*>::Invalid(object.Env().GetAndClearPendingException().Message()); \
       } else if (!isInstance) { \

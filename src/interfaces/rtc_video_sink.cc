@@ -23,11 +23,6 @@
 
 namespace node_webrtc {
 
-Napi::FunctionReference& RTCVideoSink::constructor() {
-  static Napi::FunctionReference constructor;
-  return constructor;
-}
-
 RTCVideoSink::RTCVideoSink(const Napi::CallbackInfo& info)
   : AsyncObjectWrapWithLoop<RTCVideoSink>("RTCVideoSink", *this, info) {
   if (!info.IsConstructCall()) {
@@ -93,9 +88,6 @@ void RTCVideoSink::Init(Napi::Env env, Napi::Object exports) {
     InstanceAccessor("stopped", &RTCVideoSink::GetStopped, nullptr),
     InstanceMethod("stop", &RTCVideoSink::JsStop)
   });
-
-  constructor() = Napi::Persistent(func);
-  constructor().SuppressDestruct();
 
   exports.Set("RTCVideoSink", func);
 }

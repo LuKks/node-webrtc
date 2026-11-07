@@ -71,3 +71,73 @@ test('closed stats exit cleanly with retained wrappers, pending requests and gar
   }
   t.end();
 });
+
+test('worker exit leaves the main thread WebRTC usable', function (t) {
+  const script = `
+    const assert = require('node:assert/strict')
+    const { Worker } = require('node:worker_threads')
+    const { RTCPeerConnection } = require('./')
+
+    const workerSource = function () {
+      const assert = require('node:assert/strict')
+      const { workerData } = require('node:worker_threads')
+      const { RTCPeerConnection } = require('./')
+
+      if (workerData) {
+        const peer = new RTCPeerConnection({ iceServers: [] })
+        try {
+          const { receiver } = peer.addTransceiver('audio', { direction: 'recvonly' })
+          assert.equal(receiver.track.kind, 'audio')
+          peer.createDataChannel('worker').close()
+        } finally {
+          peer.close()
+        }
+      }
+    }
+
+    function runWorker (usePeer) {
+      return new Promise((resolve, reject) => {
+        const worker = new Worker('(' + workerSource.toString() + ')()', {
+          eval: true,
+          workerData: usePeer
+        })
+        worker.once('error', reject)
+        worker.once('exit', code => {
+          if (code === 0) resolve()
+          else reject(new Error('Worker exited with code ' + code))
+        })
+      })
+    }
+
+    async function main () {
+      await runWorker(false)
+      const peer = new RTCPeerConnection({ iceServers: [] })
+      try {
+        await runWorker(true)
+        const { receiver } = peer.addTransceiver('audio', { direction: 'recvonly' })
+        assert.equal(receiver.track.kind, 'audio')
+        peer.createDataChannel('main').close()
+        assert.equal((await peer.createOffer()).type, 'offer')
+      } finally {
+        peer.close()
+      }
+      assert.throws(() => peer.createDataChannel('closed'), { name: 'InvalidStateError' })
+      console.log('peer closed')
+    }
+
+    main().catch(err => {
+      console.error(err)
+      process.exitCode = 1
+    })
+  `
+  const result = spawnSync(process.execPath, ['-e', script], {
+    cwd: path.resolve(__dirname, '..'),
+    encoding: 'utf8',
+    timeout: 15000
+  })
+  t.ifError(result.error)
+  t.equal(result.signal, null, result.stderr || 'no worker teardown signal')
+  t.equal(result.status, 0, result.stdout + result.stderr)
+  t.equal(result.stdout.trim(), 'peer closed')
+  t.end()
+})
