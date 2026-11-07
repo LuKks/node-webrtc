@@ -163,7 +163,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          # The pinned WPT snapshot still requires Python 3.9.
+          - os: ubuntu-24.04
             node: 26
             run_wpt: true
             cross_compile: false
@@ -1361,7 +1362,7 @@ jobs:
 
             successful_build_jobs="$(
               gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?filter=latest&per_page=100" \
-                --jq '[.jobs[] | select(.conclusion == "success" and (.name == "ubuntu-latest / node 26" or .name == "ubuntu-24.04-arm / node 26" or .name == "windows-2022 / node 26" or .name == "macos-latest / node 26" or .name == "macos-15-intel / node 26")) | .name] | unique | length'
+                --jq '[.jobs[] | select(.conclusion == "success" and (.name == "ubuntu-24.04 / node 26" or .name == "ubuntu-24.04-arm / node 26" or .name == "windows-2022 / node 26" or .name == "macos-latest / node 26" or .name == "macos-15-intel / node 26")) | .name] | unique | length'
             )"
             if [ "$successful_build_jobs" -ne "$expected_platforms" ]; then
               continue
