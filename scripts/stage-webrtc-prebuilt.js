@@ -22,7 +22,9 @@ function copyHeaders(directory) {
     const from = join(directory, entry.name);
     const sourceRelative = relative(source, from).replaceAll("\\", "/");
     if (entry.isDirectory()) {
-      if (sourceRelative === "third_party/llvm-build" ||
+      // Catapult's test tools include extensionless binaries such as d8.
+      if (sourceRelative === 'third_party/catapult' ||
+          sourceRelative === "third_party/llvm-build" ||
           (sourceRelative.startsWith("build/linux/") && sourceRelative.includes("sysroot"))) {
         continue;
       }
@@ -35,22 +37,6 @@ function copyHeaders(directory) {
 
 if (!existsSync(source) || !existsSync(build)) {
   throw new Error("WebRTC source or Release build output is missing");
-}
-
-copyHeaders(source);
-
-const generated = join(build, "gen");
-if (existsSync(generated)) {
-  const copyGenerated = directory => {
-    for (const entry of readdirSync(directory, { withFileTypes: true })) {
-      const from = join(directory, entry.name);
-      if (entry.isDirectory()) copyGenerated(from);
-      else if (entry.isFile() && headerExtensions.has(extname(entry.name))) {
-        copyFile(from, join(output, "build/Release/gen", relative(generated, from)));
-      }
-    }
-  };
-  copyGenerated(generated);
 }
 
 const outputs = process.platform === "win32"
@@ -72,18 +58,37 @@ for (const item of outputs) {
   if (!existsSync(from) || !statSync(from).isFile()) {
     throw new Error(`Required WebRTC output is missing: ${item}`);
   }
-  copyFile(from, join(output, "build/Release", item));
 }
 
-if (process.platform === "linux") {
-  const linker = join(source, "third_party/llvm-build/Release+Asserts/bin/ld.lld");
-  if (!existsSync(linker)) {
-    throw new Error("Required Chromium linker is missing: third_party/llvm-build/Release+Asserts/bin/ld.lld");
-  }
-  copyFile(
-    linker,
-    join(output, "download/src/third_party/llvm-build/Release+Asserts/bin/ld.lld"),
-  );
+const linker = process.platform === 'linux'
+  ? 'third_party/llvm-build/Release+Asserts/bin/ld.lld'
+  : null
+if (linker && !existsSync(join(source, linker))) {
+  throw new Error(`Required Chromium linker is missing: ${linker}`)
+}
+
+copyHeaders(source);
+
+const generated = join(build, "gen");
+if (existsSync(generated)) {
+  const copyGenerated = directory => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const from = join(directory, entry.name);
+      if (entry.isDirectory()) copyGenerated(from);
+      else if (entry.isFile() && headerExtensions.has(extname(entry.name))) {
+        copyFile(from, join(output, "build/Release/gen", relative(generated, from)));
+      }
+    }
+  };
+  copyGenerated(generated);
+}
+
+for (const item of outputs) {
+  copyFile(join(build, item), join(output, 'build/Release', item))
+}
+
+if (linker) {
+  copyFile(join(source, linker), join(output, 'download/src', linker))
 }
 
 console.log(`Staged WebRTC prebuilt files in ${output}`);

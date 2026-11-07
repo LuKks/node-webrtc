@@ -257,6 +257,14 @@ jobs:
           Write-Host "Using Visual Studio SDK from $installPath with clang-cl, lld-link, and Ninja"
           Write-Host "Using Windows resource compiler $resourceCompiler"
 
+      - name: Free disk space for WebRTC
+        if: runner.os == 'Linux' && runner.environment == 'github-hosted'
+        shell: bash
+        run: |
+          df -h "$GITHUB_WORKSPACE"
+          sudo rm -rf -- /usr/local/lib/android /usr/share/dotnet /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          df -h "$GITHUB_WORKSPACE"
+
       - name: Install build dependencies (Linux)
         if: runner.os == 'Linux'
         timeout-minutes: 10
@@ -762,6 +770,14 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: 26
+
+      - name: Free disk space for WebRTC
+        if: runner.os == 'Linux' && runner.environment == 'github-hosted'
+        shell: bash
+        run: |
+          df -h "$GITHUB_WORKSPACE"
+          sudo rm -rf -- /usr/local/lib/android /usr/share/dotnet /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          df -h "$GITHUB_WORKSPACE"
 
       - name: Install build dependencies
         timeout-minutes: 10
@@ -1448,14 +1464,14 @@ jobs:
           npm install "$native_archive" "$package_archive"
           node -e "import('@lukks/wrtc').then(wrtc => console.log('installed release ok', !!wrtc))"
 
-      - name: Publish native platform packages to npm with provenance
-        run: |
-          node scripts/publish-native-platforms.js \
-            --packages "$RUNNER_TEMP/native-platform-packages" \
-            --provenance
+#      - name: Publish native platform packages to npm with provenance
+#        run: |
+#          node scripts/publish-native-platforms.js \
+#            --packages "$RUNNER_TEMP/native-platform-packages" \
+#            --provenance
 
-      - name: Publish package to npm with provenance
-        run: node scripts/publish-to-npm.js --provenance
+#      - name: Publish package to npm with provenance
+#        run: node scripts/publish-to-npm.js --provenance
 
-      - name: Verify the public npm release
-        run: node scripts/verify-npm-release.js
+#      - name: Verify the public npm release
+#        run: node scripts/verify-npm-release.js
