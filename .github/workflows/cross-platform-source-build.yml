@@ -4,12 +4,12 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - develop
+      - main
     tags:
       - "v*"
   pull_request:
     branches:
-      - develop
+      - main
     paths-ignore:
       - "README.md"
       - "docs/**"
@@ -69,10 +69,6 @@ jobs:
                 source_build=true
                 performance=true
                 alternative_benchmarks=true
-                ;;
-              benchmarks/run-paired.js)
-                source_build=true
-                performance=true
                 ;;
               test/web-platform-tests/*|scripts/generate-wpt-hosts.js|scripts/patch-wpt-python3.js|scripts/reset-wpt.js|scripts/summarize-wpt.js)
                 source_build=true
@@ -163,7 +159,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          # The pinned WPT snapshot still requires Python 3.9.
+          - os: ubuntu-24.04
             node: 26
             run_wpt: true
             cross_compile: false
@@ -173,9 +170,10 @@ jobs:
             platform_patch_1: cmake/webrtc-linux.cmake
             platform_patch_2: cmake/webrtc-linux.cmake
             legacy_artifact: ""
-          - os: ubuntu-latest
-            label: ubuntu-latest (linux arm64 cross)
+          - os: ubuntu-24.04
+            label: ubuntu-24.04 (linux arm64 cross)
             node: 26
+            timeout_minutes: 120
             run_wpt: false
             cross_compile: true
             target_arch: arm64
@@ -256,6 +254,14 @@ jobs:
           "RC=$resourceCompiler" >> $env:GITHUB_ENV
           Write-Host "Using Visual Studio SDK from $installPath with clang-cl, lld-link, and Ninja"
           Write-Host "Using Windows resource compiler $resourceCompiler"
+
+      - name: Free disk space for WebRTC
+        if: runner.os == 'Linux' && runner.environment == 'github-hosted'
+        shell: bash
+        run: |
+          df -h "$GITHUB_WORKSPACE"
+          sudo rm -rf -- /usr/local/lib/android /usr/share/dotnet /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          df -h "$GITHUB_WORKSPACE"
 
       - name: Install build dependencies (Linux)
         if: runner.os == 'Linux'
@@ -471,7 +477,7 @@ jobs:
         if: matrix.cross_compile != true
         uses: actions/setup-node@v7
         with:
-          node-version: 24.15
+          node-version: 22.13.0
 
       - name: Verify minimum supported Node.js
         if: matrix.cross_compile != true
@@ -570,55 +576,18 @@ jobs:
         if: matrix.cross_compile != true && needs.changes.outputs.performance == 'true'
         run: node benchmarks/run.js --iterations 1 --warmup 0 --messages 5
 
-      - name: Find benchmark baseline
-        id: benchmark-baseline
-        if: matrix.cross_compile != true && needs.changes.outputs.performance == 'true'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          # Measure the combined optimizations against the published release.
-          mkdir -p benchmarks/release-baseline
-          release_archive="wrtc-v0.7.2-napi-v3-$(node -p 'process.platform')-$(node -p 'process.arch').tar.gz"
-          gh release download v0.7.2 --repo "$GITHUB_REPOSITORY" \
-            --pattern "$release_archive" --dir benchmarks/release-baseline
-          tar -xzf "benchmarks/release-baseline/$release_archive" -C benchmarks/release-baseline
-          echo "addon=benchmarks/release-baseline/Release/wrtc.node" >> "$GITHUB_OUTPUT"
-          echo "ref=v0.7.2" >> "$GITHUB_OUTPUT"
-
       - name: Run stable benchmarks
         if: matrix.cross_compile != true && needs.changes.outputs.performance == 'true'
         shell: bash
         env:
-          BASELINE_PATH: ${{ steps.benchmark-baseline.outputs.path }}
-          BASELINE_ADDON: ${{ steps.benchmark-baseline.outputs.addon }}
           BENCHMARK_OUTPUT: benchmarks/results/${{ runner.os }}-${{ runner.arch }}.json
-          PAIR_BENCHMARKS: 'true'
-          BASELINE_REF: ${{ steps.benchmark-baseline.outputs.ref }}
         run: |
-          if [ "$PAIR_BENCHMARKS" = "true" ] && [ -n "$BASELINE_ADDON" ]; then
-            node benchmarks/run-paired.js \
-              --baseline-addon "$BASELINE_ADDON" \
-              --candidate-addon build/Release/wrtc.node \
-              --baseline-ref "$BASELINE_REF" \
-              --pairs 10 \
-              --iterations 10 \
-              --warmup 1 \
-              --messages 10 \
-              --output "$BENCHMARK_OUTPUT"
-            exit 0
-          fi
-          baseline_args=()
-          if [ -n "$BASELINE_PATH" ]; then
-            baseline_args=(--baseline "$BASELINE_PATH")
-          fi
           node benchmarks/run.js \
             --iterations 5 \
             --warmup 1 \
             --compare-runs 3 \
             --messages 10 \
-            --output "$BENCHMARK_OUTPUT" \
-            "${baseline_args[@]}"
+            --output "$BENCHMARK_OUTPUT"
 
       - name: Preserve benchmark result
         if: matrix.cross_compile != true && needs.changes.outputs.performance == 'true'
@@ -687,7 +656,9 @@ jobs:
           npm install --ignore-scripts
 
       - name: Smoke load addon
-        run: node -e "const wrtc=require('./'); const pc=new wrtc.RTCPeerConnection(); pc.close(); console.log('wrtc ok on', process.arch);"
+        run: |
+          node -e "require('./build/Release/wrtc.node'); console.log('native addon loaded on', process.arch);"
+          node -e "const wrtc=require('./'); const pc=new wrtc.RTCPeerConnection(); pc.close(); console.log('wrtc ok on', process.arch);"
 
       - name: Run native test suite
         run: npm test
@@ -695,10 +666,12 @@ jobs:
       - name: Setup minimum supported Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 24.15
+          node-version: 22.13.0
 
       - name: Verify minimum supported Node.js
-        run: node -e "const wrtc=require('./'); const pc=new wrtc.RTCPeerConnection(); pc.close(); console.log('wrtc ok on', process.version);"
+        run: |
+          node -e "require('./build/Release/wrtc.node'); console.log('native addon loaded on', process.version);"
+          node -e "const wrtc=require('./'); const pc=new wrtc.RTCPeerConnection(); pc.close(); console.log('wrtc ok on', process.version);"
 
       - name: Name tested ARM64 addon cache
         id: native-addon-cache
@@ -723,21 +696,14 @@ jobs:
       - name: Run stable benchmarks
         if: needs.changes.outputs.performance == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          BENCHMARK_OUTPUT: benchmarks/results/Linux-ARM64.json
         run: |
-          mkdir -p benchmarks/release-baseline
-          gh release download v0.7.2 --repo "$GITHUB_REPOSITORY" \
-            --pattern 'wrtc-v0.7.2-napi-v3-linux-arm64.tar.gz' --dir benchmarks/release-baseline
-          tar -xzf benchmarks/release-baseline/wrtc-v0.7.2-napi-v3-linux-arm64.tar.gz -C benchmarks/release-baseline
-          node benchmarks/run-paired.js \
-            --baseline-addon benchmarks/release-baseline/Release/wrtc.node \
-            --candidate-addon build/Release/wrtc.node \
-            --baseline-ref v0.7.2 \
-            --pairs 10 \
-            --iterations 10 \
+          node benchmarks/run.js \
+            --iterations 5 \
             --warmup 1 \
+            --compare-runs 3 \
             --messages 10 \
-            --output benchmarks/results/Linux-ARM64.json
+            --output "$BENCHMARK_OUTPUT"
 
       - name: Preserve benchmark result
         if: needs.changes.outputs.performance == 'true'
@@ -762,6 +728,14 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: 26
+
+      - name: Free disk space for WebRTC
+        if: runner.os == 'Linux' && runner.environment == 'github-hosted'
+        shell: bash
+        run: |
+          df -h "$GITHUB_WORKSPACE"
+          sudo rm -rf -- /usr/local/lib/android /usr/share/dotnet /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          df -h "$GITHUB_WORKSPACE"
 
       - name: Install build dependencies
         timeout-minutes: 10
@@ -917,12 +891,12 @@ jobs:
         run: |
           node benchmarks/run.js \
             --suite implementation-comparison \
-            --implementation @vandeurenglenn/wrtc \
+            --implementation @lukks/wrtc \
             --iterations 5 \
             --warmup 1 \
             --compare-runs 3 \
             --messages 10 \
-            --output benchmarks/implementations/vandeurenglenn-wrtc.json
+            --output benchmarks/implementations/lukks-wrtc.json
 
       - name: Reuse trusted alternative benchmark results
         id: alternative-cache
@@ -933,7 +907,7 @@ jobs:
         run: |
           run_id="$(
             gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=benchmark-alternatives&per_page=100" \
-              --jq '[.artifacts[] | select(.expired == false and .workflow_run.head_branch == "develop")] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty'
+              --jq '[.artifacts[] | select(.expired == false and .workflow_run.head_branch == "main")] | sort_by(.created_at) | reverse | .[0].workflow_run.id // empty'
           )"
           if [ -z "$run_id" ]; then
             echo "hit=false" >> "$GITHUB_OUTPUT"
@@ -1059,7 +1033,7 @@ jobs:
           mkdir -p benchmark-history
           gh pr list \
             --repo "$GITHUB_REPOSITORY" \
-            --base develop \
+            --base main \
             --state merged \
             --limit 20 \
             --json headRefOid \
@@ -1123,7 +1097,7 @@ jobs:
 
   deploy-benchmark-pages:
     name: Publish benchmark dashboard
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -1154,7 +1128,6 @@ jobs:
             src
             lib
             benchmarks/run.js
-            benchmarks/run-paired.js
             benchmarks/unsupported-result.js
             package.json
             package-lock.json
@@ -1232,7 +1205,7 @@ jobs:
           )
 
           if [ -z "$benchmark_run_id" ]; then
-            echo "No successful PR run has benchmark inputs compatible with develop" >&2
+            echo "No successful PR run has benchmark inputs compatible with main" >&2
             exit 1
           fi
 
@@ -1258,7 +1231,7 @@ jobs:
           mkdir -p benchmark-history
           gh pr list \
             --repo "$GITHUB_REPOSITORY" \
-            --base develop \
+            --base main \
             --state merged \
             --limit 20 \
             --json headRefOid \
@@ -1345,7 +1318,7 @@ jobs:
 
             successful_build_jobs="$(
               gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?filter=latest&per_page=100" \
-                --jq '[.jobs[] | select(.conclusion == "success" and (.name == "ubuntu-latest / node 26" or .name == "ubuntu-24.04-arm / node 26" or .name == "windows-2022 / node 26" or .name == "macos-latest / node 26" or .name == "macos-15-intel / node 26")) | .name] | unique | length'
+                --jq '[.jobs[] | select(.conclusion == "success" and (.name == "ubuntu-24.04 / node 26" or .name == "ubuntu-24.04-arm / node 26" or .name == "windows-2022 / node 26" or .name == "macos-latest / node 26" or .name == "macos-15-intel / node 26")) | .name] | unique | length'
             )"
             if [ "$successful_build_jobs" -ne "$expected_platforms" ]; then
               continue
@@ -1434,7 +1407,7 @@ jobs:
             gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
               --verify-tag \
               --generate-notes \
-              --title "@vandeurenglenn/wrtc $GITHUB_REF_NAME"
+              --title "@lukks/wrtc $GITHUB_REF_NAME"
           fi
 
       - name: Verify the packaged install path
@@ -1446,16 +1419,16 @@ jobs:
           cd "$install_dir"
           npm init -y >/dev/null
           npm install "$native_archive" "$package_archive"
-          node -e "import('@vandeurenglenn/wrtc').then(wrtc => console.log('installed release ok', !!wrtc))"
+          node -e "import('@lukks/wrtc').then(wrtc => console.log('installed release ok', !!wrtc))"
 
-      - name: Publish native platform packages to npm with provenance
-        run: |
-          node scripts/publish-native-platforms.js \
-            --packages "$RUNNER_TEMP/native-platform-packages" \
-            --provenance
+#      - name: Publish native platform packages to npm with provenance
+#        run: |
+#          node scripts/publish-native-platforms.js \
+#            --packages "$RUNNER_TEMP/native-platform-packages" \
+#            --provenance
 
-      - name: Publish package to npm with provenance
-        run: node scripts/publish-to-npm.js --provenance
+#      - name: Publish package to npm with provenance
+#        run: node scripts/publish-to-npm.js --provenance
 
-      - name: Verify the public npm release
-        run: node scripts/verify-npm-release.js
+#      - name: Verify the public npm release
+#        run: node scripts/verify-npm-release.js

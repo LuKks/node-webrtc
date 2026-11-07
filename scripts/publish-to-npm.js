@@ -12,9 +12,7 @@ const require = createRequire(import.meta.url);
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const rootPackageJson = require("../package.json");
 
-const githubUrl =
-  "https://github.com/VandeurenGlenn/node-webrtc/blob/v" +
-  rootPackageJson.version;
+const githubUrl = `${rootPackageJson.homepage}/blob/v${rootPackageJson.version}`
 
 const paths = [
   "lib",

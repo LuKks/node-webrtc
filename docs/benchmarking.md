@@ -54,7 +54,7 @@ node benchmarks/run.js --baseline benchmarks/baseline.json --regression-threshol
 ## CI reports
 
 Pull requests run a stable benchmark on Linux, macOS, and Windows. Each result
-is compared with the latest successful `develop` run from the same operating
+is compared with the latest successful `main` run from the same operating
 system and architecture. This avoids invalid comparisons between different
 GitHub runner types.
 
@@ -62,12 +62,10 @@ Open the **Visual benchmark report** job in GitHub Actions to see the combined
 comparison table. The same job publishes a `benchmark-dashboard` artifact with
 a self-contained HTML report. Individual platform JSON results are retained as
 workflow artifacts for 90 days and become the baseline for subsequent pull
-requests after they land on `develop`.
+requests after they land on `main`.
 
-Successful `develop` builds also publish the report at
-[vandeurenglenn.github.io/node-webrtc](https://vandeurenglenn.github.io/node-webrtc/).
 The dashboard includes a per-scenario timeline built from up to 20 successful
-`develop` workflow runs. Hover a point to see its commit and mean duration.
+`main` workflow runs. Hover a point to see its commit and mean duration.
 It also runs the shared DataChannel scenarios on Linux against Koush's legacy
 `wrtc`, `@roamhq/wrtc`, and `werift`. Implementations that cannot install or
 load on the current Node.js release are shown as unsupported instead of making
@@ -114,8 +112,8 @@ binary messages at 499 Hz, yielding enough samples for native hotspot
 attribution without an open-ended profiling job.
 
 Pull requests compare against the latest verified benchmark artifact whose Git
-tree matches `develop`. Merging does not rerun builds, tests, WPT, sanitizers,
-or benchmarks: the lightweight `develop` workflow publishes the already
+tree matches `main`. Merging does not rerun builds, tests, WPT, sanitizers,
+or benchmarks: the lightweight `main` workflow publishes the already
 verified PR dashboard. Each reused artifact requires its producer job to have
 succeeded, so an unrelated external-service failure cannot discard valid
 results or admit output from a failed platform job. An earlier pull request can

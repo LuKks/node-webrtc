@@ -10,9 +10,9 @@ test("npm release verification encodes scoped package names", async () => {
   assert.equal(
     registryPackageUrl(
       "https://registry.npmjs.org/",
-      "@vandeurenglenn/wrtc",
+      "@lukks/wrtc",
     ),
-    "https://registry.npmjs.org/%40vandeurenglenn%2Fwrtc",
+    "https://registry.npmjs.org/%40lukks%2Fwrtc",
   );
 });
 

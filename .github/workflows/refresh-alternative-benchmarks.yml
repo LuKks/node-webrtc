@@ -6,7 +6,7 @@ on:
     - cron: "17 4 * * 1"
   push:
     branches:
-      - develop
+      - main
     paths:
       - ".github/workflows/cross-platform-source-build.yml"
       - ".github/workflows/refresh-alternative-benchmarks.yml"

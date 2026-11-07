@@ -19,7 +19,7 @@ test('dashboard reuse compares the tested merge and rejects changed benchmark in
     return result.stdout.trim();
   }
   try {
-    git('init', '-b', 'develop');
+    git('init', '-b', 'main');
     git('config', 'user.email', 'test@example.invalid');
     git('config', 'user.name', 'Test');
     fs.mkdirSync(path.join(root, 'src'));
@@ -31,7 +31,7 @@ test('dashboard reuse compares the tested merge and rejects changed benchmark in
     git('add', '.');
     git('commit', '-m', 'feature');
     const head = git('rev-parse', 'HEAD');
-    git('switch', 'develop');
+    git('switch', 'main');
     fs.writeFileSync(path.join(root, 'src/native.cc'), 'updated base');
     git('add', '.');
     git('commit', '-m', 'update base');
