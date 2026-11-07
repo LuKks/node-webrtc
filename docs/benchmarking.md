@@ -64,8 +64,6 @@ a self-contained HTML report. Individual platform JSON results are retained as
 workflow artifacts for 90 days and become the baseline for subsequent pull
 requests after they land on `main`.
 
-The upstream project publishes its report at
-[vandeurenglenn.github.io/node-webrtc](https://vandeurenglenn.github.io/node-webrtc/).
 The dashboard includes a per-scenario timeline built from up to 20 successful
 `main` workflow runs. Hover a point to see its commit and mean duration.
 It also runs the shared DataChannel scenarios on Linux against Koush's legacy

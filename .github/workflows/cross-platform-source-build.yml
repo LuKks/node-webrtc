@@ -70,10 +70,6 @@ jobs:
                 performance=true
                 alternative_benchmarks=true
                 ;;
-              benchmarks/run-paired.js)
-                source_build=true
-                performance=true
-                ;;
               test/web-platform-tests/*|scripts/generate-wpt-hosts.js|scripts/patch-wpt-python3.js|scripts/reset-wpt.js|scripts/summarize-wpt.js)
                 source_build=true
                 wpt=true
@@ -579,55 +575,18 @@ jobs:
         if: matrix.cross_compile != true && needs.changes.outputs.performance == 'true'
         run: node benchmarks/run.js --iterations 1 --warmup 0 --messages 5
 
-      - name: Find benchmark baseline
-        id: benchmark-baseline
-        if: matrix.cross_compile != true && needs.changes.outputs.performance == 'true'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          # Measure the combined optimizations against the published release.
-          mkdir -p benchmarks/release-baseline
-          release_archive="wrtc-v0.7.2-napi-v3-$(node -p 'process.platform')-$(node -p 'process.arch').tar.gz"
-          gh release download v0.7.2 --repo VandeurenGlenn/node-webrtc \
-            --pattern "$release_archive" --dir benchmarks/release-baseline
-          tar -xzf "benchmarks/release-baseline/$release_archive" -C benchmarks/release-baseline
-          echo "addon=benchmarks/release-baseline/Release/wrtc.node" >> "$GITHUB_OUTPUT"
-          echo "ref=v0.7.2" >> "$GITHUB_OUTPUT"
-
       - name: Run stable benchmarks
         if: matrix.cross_compile != true && needs.changes.outputs.performance == 'true'
         shell: bash
         env:
-          BASELINE_PATH: ${{ steps.benchmark-baseline.outputs.path }}
-          BASELINE_ADDON: ${{ steps.benchmark-baseline.outputs.addon }}
           BENCHMARK_OUTPUT: benchmarks/results/${{ runner.os }}-${{ runner.arch }}.json
-          PAIR_BENCHMARKS: 'true'
-          BASELINE_REF: ${{ steps.benchmark-baseline.outputs.ref }}
         run: |
-          if [ "$PAIR_BENCHMARKS" = "true" ] && [ -n "$BASELINE_ADDON" ]; then
-            node benchmarks/run-paired.js \
-              --baseline-addon "$BASELINE_ADDON" \
-              --candidate-addon build/Release/wrtc.node \
-              --baseline-ref "$BASELINE_REF" \
-              --pairs 10 \
-              --iterations 10 \
-              --warmup 1 \
-              --messages 10 \
-              --output "$BENCHMARK_OUTPUT"
-            exit 0
-          fi
-          baseline_args=()
-          if [ -n "$BASELINE_PATH" ]; then
-            baseline_args=(--baseline "$BASELINE_PATH")
-          fi
           node benchmarks/run.js \
             --iterations 5 \
             --warmup 1 \
             --compare-runs 3 \
             --messages 10 \
-            --output "$BENCHMARK_OUTPUT" \
-            "${baseline_args[@]}"
+            --output "$BENCHMARK_OUTPUT"
 
       - name: Preserve benchmark result
         if: matrix.cross_compile != true && needs.changes.outputs.performance == 'true'
@@ -732,21 +691,14 @@ jobs:
       - name: Run stable benchmarks
         if: needs.changes.outputs.performance == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          BENCHMARK_OUTPUT: benchmarks/results/Linux-ARM64.json
         run: |
-          mkdir -p benchmarks/release-baseline
-          gh release download v0.7.2 --repo VandeurenGlenn/node-webrtc \
-            --pattern 'wrtc-v0.7.2-napi-v3-linux-arm64.tar.gz' --dir benchmarks/release-baseline
-          tar -xzf benchmarks/release-baseline/wrtc-v0.7.2-napi-v3-linux-arm64.tar.gz -C benchmarks/release-baseline
-          node benchmarks/run-paired.js \
-            --baseline-addon benchmarks/release-baseline/Release/wrtc.node \
-            --candidate-addon build/Release/wrtc.node \
-            --baseline-ref v0.7.2 \
-            --pairs 10 \
-            --iterations 10 \
+          node benchmarks/run.js \
+            --iterations 5 \
             --warmup 1 \
+            --compare-runs 3 \
             --messages 10 \
-            --output benchmarks/results/Linux-ARM64.json
+            --output "$BENCHMARK_OUTPUT"
 
       - name: Preserve benchmark result
         if: needs.changes.outputs.performance == 'true'
@@ -1171,7 +1123,6 @@ jobs:
             src
             lib
             benchmarks/run.js
-            benchmarks/run-paired.js
             benchmarks/unsupported-result.js
             package.json
             package-lock.json
